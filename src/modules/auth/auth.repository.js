@@ -1,10 +1,17 @@
-// src/modules/auth/auth.repository.js
 const User = require('./auth.model')
 
-exports.createUser = async (data) => {
-  return await User.create(data)
+class AuthRepository {
+  async create(data) {
+    return User.create(data)
+  }
+
+  async findByEmail(email) {
+    return User.findOne({ email })
+  }
+
+  async findById(id) {
+    return User.findById(id)
+  }
 }
 
-exports.findByEmail = async (email) => {
-  return await User.findOne({ email })
-}
+module.exports = new AuthRepository()

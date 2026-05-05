@@ -1,13 +1,24 @@
-// src/modules/auth/auth.model.js
 const mongoose = require('mongoose')
 
 const userSchema = new mongoose.Schema({
-  name: String,
-  email: { type: String, unique: true },
-  password: String,
+  name: {
+    type: String,
+    required: true
+  },
+  email: {
+    type: String,
+    unique: true,
+    required: true,
+    lowercase: true
+  },
+  password: {
+    type: String,
+    required: true
+  },
   role: {
     type: String,
-    enum: ['student', 'teacher', 'admin']
+    enum: ['student', 'teacher', 'admin'],
+    default: 'student'
   }
 }, { timestamps: true })
 
