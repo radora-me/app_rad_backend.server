@@ -1,8 +1,11 @@
-// src/modules/auth/auth.routes.js
 const router = require('express').Router()
 const controller = require('./auth.controller')
-console.log("Auth routes loaded")
-router.post('/signup', controller.signup)
-router.post('/login', controller.login)
+
+router.post('/signup', (req, res) => controller.signup(req, res))
+router.post('/login', (req, res) => controller.login(req, res))
+
+// NEW (does not break existing)
+router.post('/refresh', (req, res) => controller.refresh(req, res))
+router.post('/logout', (req, res) => controller.logout(req, res))
 
 module.exports = router
