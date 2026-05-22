@@ -1,11 +1,28 @@
-const router = require('express').Router()
-const controller = require('./auth.controller')
+const router = require("express").Router();
+const controller = require("./auth.controller");
+const auth = require("../../shared/middlewares/auth.middleware");
+const role = require("../../shared/middlewares/role.middleware");
 
-router.post('/signup', (req, res) => controller.signup(req, res))
-router.post('/login', (req, res) => controller.login(req, res))
- 
-// NEW (does not break existing)
-router.post('/refresh', (req, res) => controller.refresh(req, res))
-router.post('/logout', (req, res) => controller.logout(req, res))
+// Public
+router.post("/login/student", (req, res) => controller.studentLogin(req, res));
+router.post("/login/teacher", (req, res) => controller.teacherLogin(req, res));
+router.post("/refresh", (req, res) => controller.refresh(req, res));
 
-module.exports = router
+// Authenticated
+router.post("/logout", auth, (req, res) => controller.logout(req, res));
+
+// Admin only
+router.post("/admin/create-student", auth, role(["admin"]), (req, res) =>
+  controller.createStudent(req, res),
+);
+router.post("/admin/create-teacher", auth, role(["admin"]), (req, res) =>
+  controller.createTeacher(req, res),
+);
+router.get("/admin/search-teacher", auth, role(["admin"]), (req, res) =>
+  controller.searchTeacher(req, res),
+);
+router.post("/admin/assign-teacher-class", auth, role(["admin"]), (req, res) =>
+  controller.assignTeacherClass(req, res),
+);
+
+module.exports = router;

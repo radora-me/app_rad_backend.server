@@ -1,51 +1,115 @@
-const service = require('./auth.service')
-const { signupSchema, loginSchema } = require('./auth.validator')
+const service = require("./auth.service");
+const {
+  studentLoginSchema,
+  teacherLoginSchema,
+  createStudentSchema,
+  createTeacherSchema,
+} = require("./auth.validator");
+const Joi = require("joi");
+
+const assignTeacherSchema = Joi.object({
+  teacherEmail: Joi.string().email().required(),
+  className: Joi.string().min(1).required(),
+  section: Joi.string().min(1).required(),
+}).unknown(true);
+
+const teacherSearchSchema = Joi.object({
+  email: Joi.string().email().required(),
+}).unknown(true);
 
 class AuthController {
-
-  async signup(req, res) {
+  async studentLogin(req, res) {
     try {
-      const { error } = signupSchema.validate(req.body)
-      if (error) return res.status(400).json({ error: error.message })
+      const { error } = studentLoginSchema.validate(req.body);
+      if (error) return res.status(400).json({ error: error.message });
 
-      const result = await service.signup(req.body)
-      res.json(result)
+      const result = await service.studentLogin(req.body);
+      res.json(result);
     } catch (err) {
-      res.status(400).json({ error: err.message })
+      res.status(401).json({ error: err.message });
     }
   }
 
-  async login(req, res) {
+  async teacherLogin(req, res) {
     try {
-      const { error } = loginSchema.validate(req.body)
-      if (error) return res.status(400).json({ error: error.message })
+      const { error } = teacherLoginSchema.validate(req.body);
+      if (error) return res.status(400).json({ error: error.message });
 
-      const result = await service.login(req.body)
-      res.json(result)
+      const result = await service.teacherLogin(req.body);
+      res.json(result);
     } catch (err) {
-      res.status(400).json({ error: err.message })
+      res.status(401).json({ error: err.message });
+    }
+  }
+
+  async createStudent(req, res) {
+    try {
+      const { error } = createStudentSchema.validate(req.body);
+      if (error) return res.status(400).json({ error: error.message });
+
+      const result = await service.createStudent(req.body, req.user.id);
+      res.status(201).json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+
+  async createTeacher(req, res) {
+    try {
+      const { error } = createTeacherSchema.validate(req.body);
+      if (error) return res.status(400).json({ error: error.message });
+
+      const result = await service.createTeacher(req.body, req.user.id);
+      res.status(201).json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+
+  async assignTeacherClass(req, res) {
+    try {
+      const { error } = assignTeacherSchema.validate(req.body);
+      if (error) return res.status(400).json({ error: error.message });
+
+      const result = await service.assignTeacherClass(req.body, req.user.id);
+      res.status(201).json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+
+  async searchTeacher(req, res) {
+    try {
+      const { error } = teacherSearchSchema.validate(req.query);
+      if (error) return res.status(400).json({ error: error.message });
+
+      const result = await service.findTeacherByEmail(req.query.email);
+      res.json(result);
+    } catch (err) {
+      const status = err.message === "Teacher not found" ? 404 : 400;
+      res.status(status).json({ error: err.message });
     }
   }
 
   async refresh(req, res) {
     try {
-      const { token } = req.body
-      const result = await service.refreshToken(token)
-      res.json(result)
+      const { token } = req.body;
+      if (!token) return res.status(400).json({ error: "Token required" });
+      const result = await service.refreshToken(token);
+      res.json(result);
     } catch (err) {
-      res.status(401).json({ error: err.message })
+      res.status(401).json({ error: err.message });
     }
   }
 
   async logout(req, res) {
     try {
-      const { userId } = req.body
-      const result = await service.logout(userId)
-      res.json(result)
+      const result = await service.logout(req.user.id);
+      res.json(result);
     } catch (err) {
-      res.status(400).json({ error: err.message })
+      res.status(400).json({ error: err.message });
     }
   }
 }
 
-module.exports = new AuthController()
+module.exports = new AuthController();

@@ -1,0 +1,167 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  student
+  teacher
+  admin
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LEAVE
+}
+
+enum AttendanceMode {
+  FULL_DAY
+  SUBJECT_WISE
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String?  @unique
+  rollNumber   String?  @unique
+  className    String?
+  profilePhotoUrl String?
+  password     String
+  role         Role
+
+  refreshTokens    RefreshToken[]
+  sessions         Session[]
+  otps             OTP[]
+
+  taughtCourses     Course[]     @relation("TeacherCourses")
+  enrollments       Enrollment[] @relation("StudentEnrollments")
+  attendanceRecords Attendance[] @relation("StudentAttendance")
+  leaves            Leave[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RefreshToken {
+  id String @id @default(uuid())
+
+  token String @unique
+
+  userId String
+
+  expiresAt DateTime
+
+  user User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model Session {
+  id String @id @default(uuid())
+
+  userId String
+
+  ipAddress String?
+  device String?
+
+  user User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model OTP {
+  id String @id @default(uuid())
+
+  userId String
+
+  code String
+
+  expiresAt DateTime
+
+  user User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model Course {
+  id String @id @default(uuid())
+
+  title String
+  description String?
+
+  teacherId String
+
+  teacher User @relation("TeacherCourses", fields: [teacherId], references: [id])
+
+  enrollments Enrollment[]
+  attendance Attendance[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Enrollment {
+  id String @id @default(uuid())
+
+  studentId String
+  courseId String
+
+  student User @relation("StudentEnrollments", fields: [studentId], references: [id])
+
+  course Course @relation(fields: [courseId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([studentId, courseId])
+}
+
+model Attendance {
+  id String @id @default(uuid())
+
+  studentId String
+  courseId String?
+
+  date DateTime
+
+  mode AttendanceMode
+  status AttendanceStatus
+
+  markedBy String
+
+  student User @relation("StudentAttendance", fields: [studentId], references: [id])
+
+  course Course? @relation(fields: [courseId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([studentId, courseId, date])
+}
+
+model Leave {
+  id String @id @default(uuid())
+
+  studentId String
+
+  fromDate DateTime
+  toDate DateTime
+
+  reason String
+
+  status LeaveStatus @default(PENDING)
+
+  student User @relation(fields: [studentId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
