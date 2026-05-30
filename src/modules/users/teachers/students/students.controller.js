@@ -2,8 +2,7 @@ const Joi = require("joi");
 const service = require("./students.service");
 
 const upsertSchema = Joi.object({
-  className: Joi.string().min(1).required(),
-  courseIds: Joi.array().items(Joi.string().uuid()).default([]),
+  courseIds: Joi.array().items(Joi.string().uuid()).min(1).required(),
 }).unknown(true);
 
 class TeacherStudentsController {

@@ -4,6 +4,7 @@ const auth = require("../../shared/middlewares/auth.middleware");
 const role = require("../../shared/middlewares/role.middleware");
 
 // Public
+router.post("/register", (req, res) => controller.register(req, res));
 router.post("/login/student", (req, res) => controller.studentLogin(req, res));
 router.post("/login/teacher", (req, res) => controller.teacherLogin(req, res));
 router.post("/refresh", (req, res) => controller.refresh(req, res));
@@ -20,6 +21,15 @@ router.post("/admin/create-teacher", auth, role(["admin"]), (req, res) =>
 );
 router.get("/admin/search-teacher", auth, role(["admin"]), (req, res) =>
   controller.searchTeacher(req, res),
+);
+router.get("/admin/search-student", auth, role(["admin"]), (req, res) =>
+  controller.searchStudent(req, res),
+);
+router.post("/admin/create-holiday", auth, role(["admin"]), (req, res) =>
+  controller.createHoliday(req, res),
+);
+router.get("/admin/holidays", auth, role(["admin"]), (req, res) =>
+  controller.listHolidays(req, res),
 );
 router.post("/admin/assign-teacher-class", auth, role(["admin"]), (req, res) =>
   controller.assignTeacherClass(req, res),

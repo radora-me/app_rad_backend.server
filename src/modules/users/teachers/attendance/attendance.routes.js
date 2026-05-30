@@ -37,6 +37,24 @@ router.get(
   (req, res) => controller.courseAttendance(req, res),
 );
 
+router.get("/holidays", auth, role(["teacher"]), (req, res) =>
+  controller.holidays(req, res),
+);
+
+router.get(
+  "/course/:courseId/student/:rollNumber/attendance",
+  auth,
+  role(["teacher"]),
+  (req, res) => controller.studentAttendance(req, res),
+);
+
+router.patch(
+  "/course/:courseId/student/:rollNumber/attendance",
+  auth,
+  role(["teacher"]),
+  (req, res) => controller.updateStudentAttendance(req, res),
+);
+
 router.post("/subject-wise", auth, role(["teacher"]), (req, res) =>
   controller.subjectWise(req, res),
 );

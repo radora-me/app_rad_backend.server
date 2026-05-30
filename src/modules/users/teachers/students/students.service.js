@@ -15,6 +15,10 @@ class TeacherStudentsService {
         title: enrollment.course.title,
         description: enrollment.course.description,
       })),
+      // Add info about existing class assignments
+      existingTeacherIds: [
+        ...new Set((user.enrollments || []).map((e) => e.course.teacherId)),
+      ],
     };
   }
 
@@ -62,7 +66,6 @@ class TeacherStudentsService {
     const updated = await repo.syncStudentCourses({
       studentId: student.id,
       teacherId,
-      className: data.className,
       courseIds: Array.isArray(data.courseIds) ? data.courseIds : [],
     });
 

@@ -4,6 +4,25 @@ const jwtService = require("../../core/utils/jwt.utils");
 const redis = require("../../core/cache/redis");
 
 class AuthService {
+  async registerAdmin({ name, email, password }) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const existing = await repo.findByEmail(normalizedEmail);
+
+    if (existing) {
+      throw new Error("Email already exists");
+    }
+
+    const hashed = await bcrypt.hash(password, 12);
+    const user = await repo.create({
+      name: name.trim(),
+      email: normalizedEmail,
+      password: hashed,
+      role: "admin",
+    });
+
+    return this._issueTokens(user);
+  }
+
   async studentLogin({ rollNumber, password }) {
     const user = await repo.findByRollNumber(rollNumber);
     if (!user || user.role !== "student")
@@ -112,6 +131,41 @@ class AuthService {
       email: teacher.email,
       courses,
     };
+  }
+
+  async findStudentByRollNumber(rollNumber) {
+    const student = await repo.findByRollNumber(rollNumber);
+
+    if (!student || student.role !== "student") {
+      throw new Error("Student not found");
+    }
+
+    return {
+      id: student.id,
+      name: student.name,
+      rollNumber: student.rollNumber,
+      className: student.className || student.class || "",
+      profilePhotoUrl: student.profilePhotoUrl || null,
+      role: student.role,
+    };
+  }
+
+  async createHoliday({ title, date }, adminId) {
+    const holidayDate = new Date(date);
+
+    if (Number.isNaN(holidayDate.getTime())) {
+      throw new Error("Invalid date");
+    }
+
+    return repo.createHoliday({
+      title: title.trim(),
+      date: holidayDate,
+      createdBy: adminId,
+    });
+  }
+
+  async listHolidays() {
+    return repo.listHolidays();
   }
 
   async refreshToken(token) {

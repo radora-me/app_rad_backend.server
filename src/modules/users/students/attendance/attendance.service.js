@@ -1,38 +1,23 @@
-const repo = require('./attendance.repository')
+const repo = require("./attendance.repository");
 
-const {
-  calculatePercentage
-} = require('./helpers/attendanceCalculator')
+const { calculatePercentage } = require("./helpers/attendanceCalculator");
 
-const {
-  getEligibilityStatus
-} = require('./helpers/attendanceAnalytics')
+const { getEligibilityStatus } = require("./helpers/attendanceAnalytics");
 
 class AttendanceService {
-
   async overview(studentId) {
+    const records = await repo.getStudentAttendance(studentId);
+    const holidays = await repo.getHolidays();
 
-    const records = await repo.getStudentAttendance(
-      studentId
-    )
+    const total = records.length;
 
-    const total = records.length
+    const present = records.filter((r) => r.status === "PRESENT").length;
 
-    const present = records.filter(
-      r => r.status === 'PRESENT'
-    ).length
+    const percentage = calculatePercentage(present, total);
 
-    const percentage = calculatePercentage(
-      present,
-      total
-    )
-
-    const eligibility = getEligibilityStatus(
-      percentage
-    )
+    const eligibility = getEligibilityStatus(percentage);
 
     return {
-
       overallAttendance: percentage,
 
       eligibility,
@@ -43,28 +28,30 @@ class AttendanceService {
 
       absentClasses: total - present,
 
-      records
-    }
+      records,
+      holidays: holidays.map((holiday) => ({
+        id: holiday.id,
+        title: holiday.title,
+        date: holiday.date,
+      })),
+    };
   }
 
   async applyLeave(studentId, data) {
-
     return repo.createLeave({
-
       studentId,
 
       fromDate: new Date(data.fromDate),
 
       toDate: new Date(data.toDate),
 
-      reason: data.reason
-    })
+      reason: data.reason,
+    });
   }
 
   async leaveHistory(studentId) {
-
-    return repo.getLeaveHistory(studentId)
+    return repo.getLeaveHistory(studentId);
   }
 }
 
-module.exports = new AttendanceService()
+module.exports = new AttendanceService();

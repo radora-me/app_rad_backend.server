@@ -70,8 +70,12 @@ class TeacherStudentsRepository {
     });
   }
 
-  async syncStudentCourses({ studentId, teacherId, className, courseIds }) {
+  async syncStudentCourses({ studentId, teacherId, courseIds }) {
     const safeCourseIds = Array.isArray(courseIds) ? courseIds : [];
+
+    if (safeCourseIds.length !== 1) {
+      throw new Error("Select exactly one assigned class.");
+    }
 
     return prisma.$transaction(async (tx) => {
       const teacherCourses = await tx.course.findMany({
@@ -88,7 +92,35 @@ class TeacherStudentsRepository {
         );
       }
 
-      await this._updateStudentClass(tx, studentId, className);
+      const selectedCourse = teacherCourses[0];
+
+      // Check if student is already enrolled in a different class
+      const existingEnrollments = await tx.enrollment.findMany({
+        where: {
+          studentId,
+        },
+        include: {
+          course: {
+            select: {
+              id: true,
+              title: true,
+              teacherId: true,
+            },
+          },
+        },
+      });
+
+      const hasDifferentEnrollment = existingEnrollments.some(
+        (enrollment) => enrollment.courseId !== selectedCourse.id,
+      );
+
+      if (hasDifferentEnrollment) {
+        throw new Error(
+          "Student is already assigned to a class and cannot be added to another one.",
+        );
+      }
+
+      await this._updateStudentClass(tx, studentId, selectedCourse.title);
 
       const teacherCourseIds = teacherCourses.map((course) => course.id);
 

@@ -1,9 +1,11 @@
 const service = require("./auth.service");
 const {
+  registerSchema,
   studentLoginSchema,
   teacherLoginSchema,
   createStudentSchema,
   createTeacherSchema,
+  createHolidaySchema,
 } = require("./auth.validator");
 const Joi = require("joi");
 
@@ -18,6 +20,19 @@ const teacherSearchSchema = Joi.object({
 }).unknown(true);
 
 class AuthController {
+  async register(req, res) {
+    try {
+      const { error } = registerSchema.validate(req.body);
+      if (error) return res.status(400).json({ error: error.message });
+
+      const result = await service.registerAdmin(req.body);
+      res.status(201).json(result);
+    } catch (err) {
+      const status = err.message === "Email already exists" ? 409 : 400;
+      res.status(status).json({ error: err.message });
+    }
+  }
+
   async studentLogin(req, res) {
     try {
       const { error } = studentLoginSchema.validate(req.body);
@@ -50,7 +65,8 @@ class AuthController {
       const result = await service.createStudent(req.body, req.user.id);
       res.status(201).json(result);
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      const status = err.message === "Roll number already exists" ? 409 : 400;
+      res.status(status).json({ error: err.message });
     }
   }
 
@@ -62,7 +78,8 @@ class AuthController {
       const result = await service.createTeacher(req.body, req.user.id);
       res.status(201).json(result);
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      const status = err.message === "Email already exists" ? 409 : 400;
+      res.status(status).json({ error: err.message });
     }
   }
 
@@ -88,6 +105,45 @@ class AuthController {
     } catch (err) {
       const status = err.message === "Teacher not found" ? 404 : 400;
       res.status(status).json({ error: err.message });
+    }
+  }
+
+  async searchStudent(req, res) {
+    try {
+      const { error } = Joi.object({
+        rollNumber: Joi.string().required(),
+      }).validate(req.query);
+
+      if (error) return res.status(400).json({ error: error.message });
+
+      const result = await service.findStudentByRollNumber(
+        req.query.rollNumber,
+      );
+      res.json(result);
+    } catch (err) {
+      const status = err.message === "Student not found" ? 404 : 400;
+      res.status(status).json({ error: err.message });
+    }
+  }
+
+  async createHoliday(req, res) {
+    try {
+      const { error } = createHolidaySchema.validate(req.body);
+      if (error) return res.status(400).json({ error: error.message });
+
+      const result = await service.createHoliday(req.body, req.user.id);
+      res.status(201).json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+
+  async listHolidays(req, res) {
+    try {
+      const result = await service.listHolidays();
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
     }
   }
 

@@ -165,3 +165,14 @@ model Leave {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model Holiday {
+  id String @id @default(uuid())
+
+  title String
+  date DateTime @unique
+  createdBy String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

@@ -1,45 +1,47 @@
-const prisma = require('../../../../core/database/prisma')
+const prisma = require("../../../../core/database/prisma");
 
 class AttendanceRepository {
-
   async getStudentAttendance(studentId) {
-
     return prisma.attendance.findMany({
-
       where: {
-        studentId
+        studentId,
       },
 
       include: {
-        course: true
+        course: true,
       },
 
       orderBy: {
-        date: 'desc'
-      }
-    })
+        date: "desc",
+      },
+    });
+  }
+
+  async getHolidays() {
+    return prisma.holiday.findMany({
+      orderBy: {
+        date: "asc",
+      },
+    });
   }
 
   async createLeave(data) {
-
     return prisma.leave.create({
-      data
-    })
+      data,
+    });
   }
 
   async getLeaveHistory(studentId) {
-
     return prisma.leave.findMany({
-
       where: {
-        studentId
+        studentId,
       },
 
       orderBy: {
-        createdAt: 'desc'
-      }
-    })
+        createdAt: "desc",
+      },
+    });
   }
 }
 
-module.exports = new AttendanceRepository()
+module.exports = new AttendanceRepository();

@@ -69,6 +69,33 @@ class AuthRepository {
       },
     });
   }
+
+  async createHoliday({ title, date, createdBy }) {
+    const normalizedDate = new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
+    );
+
+    return prisma.holiday.upsert({
+      where: { date: normalizedDate },
+      update: {
+        title,
+        createdBy,
+      },
+      create: {
+        title,
+        date: normalizedDate,
+        createdBy,
+      },
+    });
+  }
+
+  async listHolidays() {
+    return prisma.holiday.findMany({
+      orderBy: { date: "asc" },
+    });
+  }
 }
 
 module.exports = new AuthRepository();
