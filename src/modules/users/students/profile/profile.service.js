@@ -1,37 +1,31 @@
 const repo = require("./profile.repository");
 
+const attendanceRepo = require("../attendance/attendance.repository");
+
+const {
+  buildAttendanceSummary,
+} = require("../attendance/helpers/attendanceAnalytics");
+
 class StudentProfileService {
-  _computeAttendance(attendanceRecords) {
+  _computeAttendance(attendanceRecords, holidays = []) {
     if (!attendanceRecords || attendanceRecords.length === 0) {
       return { percentage: 0, streak: 0 };
     }
 
-    const total = attendanceRecords.length;
-    const present = attendanceRecords.filter(
-      (record) => record.status === "PRESENT",
-    ).length;
-
-    const sorted = [...attendanceRecords].sort(
-      (a, b) => new Date(b.date) - new Date(a.date),
-    );
-    let streak = 0;
-
-    for (const record of sorted) {
-      if (record.status !== "PRESENT") break;
-      streak += 1;
-    }
+    const summary = buildAttendanceSummary(attendanceRecords, holidays);
 
     return {
-      percentage: Math.round((present / total) * 100),
-      streak,
+      percentage: summary.overallAttendance,
+      streak: summary.streak,
     };
   }
 
-  _toProfile(user) {
+  _toProfile(user, holidays = []) {
     if (!user) return null;
 
     const { percentage, streak } = this._computeAttendance(
       user.attendanceRecords || [],
+      holidays,
     );
 
     return {
@@ -55,7 +49,9 @@ class StudentProfileService {
     const user = await repo.findById(studentId);
     if (!user || user.role !== "student") throw new Error("Student not found");
 
-    return this._toProfile(user);
+    const holidays = await attendanceRepo.getHolidays();
+
+    return this._toProfile(user, holidays);
   }
 
   async getDashboard(studentId) {

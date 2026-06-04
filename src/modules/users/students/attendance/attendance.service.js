@@ -1,34 +1,35 @@
 const repo = require("./attendance.repository");
 
-const { calculatePercentage } = require("./helpers/attendanceCalculator");
-
-const { getEligibilityStatus } = require("./helpers/attendanceAnalytics");
+const {
+  buildAttendanceSummary,
+  getEligibilityStatus,
+} = require("./helpers/attendanceAnalytics");
 
 class AttendanceService {
   async overview(studentId) {
     const records = await repo.getStudentAttendance(studentId);
     const holidays = await repo.getHolidays();
 
-    const total = records.length;
+    const summary = buildAttendanceSummary(records, holidays);
 
-    const present = records.filter((r) => r.status === "PRESENT").length;
-
-    const percentage = calculatePercentage(present, total);
-
-    const eligibility = getEligibilityStatus(percentage);
+    const eligibility = getEligibilityStatus(summary.overallAttendance);
 
     return {
-      overallAttendance: percentage,
+      overallAttendance: summary.overallAttendance,
 
       eligibility,
 
-      totalClasses: total,
+      totalClasses: summary.totalClasses,
 
-      presentClasses: present,
+      attendedClasses: summary.attendedClasses,
 
-      absentClasses: total - present,
+      presentClasses: summary.presentClasses,
 
-      records,
+      absentClasses: summary.absentClasses,
+
+      leaveClasses: summary.leaveClasses,
+
+      records: summary.records,
       holidays: holidays.map((holiday) => ({
         id: holiday.id,
         title: holiday.title,
