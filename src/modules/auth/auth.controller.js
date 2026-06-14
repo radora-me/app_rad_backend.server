@@ -21,6 +21,9 @@ const teacherSearchSchema = Joi.object({
 
 class AuthController {
   async register(req, res) {
+    console.log("===== REGISTER =====");
+  console.log("BODY:", req.body);
+  console.log("HEADERS:", req.headers);
     try {
       const { error } = registerSchema.validate(req.body);
       if (error) return res.status(400).json({ error: error.message });
@@ -34,6 +37,9 @@ class AuthController {
   }
 
   async studentLogin(req, res) {
+    console.log("===== LOGIN =====");
+  console.log("BODY:", req.body);
+
     try {
       const { error } = studentLoginSchema.validate(req.body);
       if (error) return res.status(400).json({ error: error.message });
