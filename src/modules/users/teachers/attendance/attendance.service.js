@@ -38,11 +38,19 @@ class AttendanceService {
     return normalizedDate;
   }
 
+  _ensureNotSunday(dateInput) {
+    const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
+
+    if (date.getDay() === 0) {
+      throw new Error("Attendance cannot be marked on Sundays");
+    }
+  }
+
   async _ensureNotHoliday(dateInput) {
     const holiday = await repo.getHolidayByDate(dateInput);
 
     if (holiday) {
-      throw new Error("Attendance is not allowed on holidays");
+      throw new Error(`Attendance is not allowed on holidays: ${holiday.name}`);
     }
   }
 
@@ -51,6 +59,7 @@ class AttendanceService {
     const normalizedDate = this._ensureTodayOnly(data.date);
     const allowEdit = Boolean(data.allowEdit);
 
+    this._ensureNotSunday(normalizedDate);
     await this._ensureNotHoliday(normalizedDate);
 
     if (courseId) {
@@ -112,6 +121,7 @@ class AttendanceService {
     const normalizedDate = this._ensureTodayOnly(data.date);
     const allowEdit = Boolean(data.allowEdit);
 
+    this._ensureNotSunday(normalizedDate);
     await this._ensureNotHoliday(normalizedDate);
 
     if (!validCourse) {
@@ -222,6 +232,7 @@ class AttendanceService {
       data.date,
     );
 
+    this._ensureNotSunday(data.date);
     await this._ensureNotHoliday(data.date);
 
     if (!attendance) {

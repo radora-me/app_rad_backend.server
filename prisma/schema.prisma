@@ -30,6 +30,19 @@ enum LeaveStatus {
   REJECTED
 }
 
+enum HomeworkStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum SubmissionStatus {
+  PENDING
+  SUBMITTED
+  LATE
+  GRADED
+}
+
 model User {
   id           String   @id @default(uuid())
   name         String
@@ -48,7 +61,12 @@ model User {
   enrollments       Enrollment[] @relation("StudentEnrollments")
   attendanceRecords Attendance[] @relation("StudentAttendance")
   sentChatMessages  ClassroomMessage[] @relation("ClassroomMessageSender")
+  createdHomework Homework[] @relation("HomeworkTeacher")
+
+  homeworkSubmissions HomeworkSubmission[] @relation("HomeworkStudent")
   leaves            Leave[]
+  uploadedFiles File[] @relation("UploadedFiles")
+  gradedSubmissions HomeworkSubmission[] @relation("HomeworkGrader")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -108,6 +126,7 @@ model Course {
   enrollments Enrollment[]
   attendance Attendance[]
   chatMessages ClassroomMessage[]
+  homework Homework[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -166,6 +185,37 @@ model ClassroomMessage {
   @@index([senderId])
 }
 
+model Homework {
+  id String @id @default(uuid())
+
+  title String
+  description String?
+  instructions String?
+
+  courseId String
+  teacherId String
+
+  dueAt DateTime?
+  allowLateSubmission Boolean @default(false)
+
+  totalMarks Int?
+
+  status HomeworkStatus @default(PUBLISHED)
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  teacher User @relation("HomeworkTeacher", fields: [teacherId], references: [id])
+
+  attachments HomeworkAttachment[]
+
+  submissions HomeworkSubmission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([courseId])
+  @@index([teacherId])
+  @@index([dueAt])
+}
 model Leave {
   id String @id @default(uuid())
 
@@ -182,6 +232,98 @@ model Leave {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model HomeworkAttachment {
+  id String @id @default(uuid())
+
+  homeworkId String
+  fileId String
+
+  homework Homework @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
+  file File @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([homeworkId, fileId])
+  @@index([homeworkId])
+  @@index([fileId])
+}
+model HomeworkSubmission {
+  id String @id @default(uuid())
+
+  homeworkId String
+  studentId String
+
+  textSubmission String?
+
+  submittedAt DateTime @default(now())
+
+  status SubmissionStatus @default(PENDING)
+
+  marks Int?
+  gradedAt DateTime?
+  gradedById String?
+
+  gradedBy User? @relation("HomeworkGrader", fields: [gradedById], references: [id])
+
+  feedback String?
+
+  homework Homework @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
+  student User @relation("HomeworkStudent", fields: [studentId], references: [id])
+
+  attachments SubmissionAttachment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([homeworkId, studentId])
+
+  @@index([homeworkId])
+  @@index([studentId])
+}
+model SubmissionAttachment {
+  id String @id @default(uuid())
+
+  submissionId String
+  fileId String
+
+  submission HomeworkSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  file File @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([submissionId, fileId])
+  @@index([submissionId])
+  @@index([fileId])
+}
+model File {
+  id String @id @default(uuid())
+
+  fileName String
+  originalName String
+
+  mimeType String
+  extension String?
+
+  size Int
+
+  storagePath String
+  publicUrl String
+
+  uploadedById String?
+
+  uploadedBy User? @relation("UploadedFiles", fields: [uploadedById], references: [id])
+
+  homeworkAttachments HomeworkAttachment[]
+  submissionAttachments SubmissionAttachment[]
+  isDeleted Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  checksum String?
+
+  @@index([uploadedById])
 }
 
 model Holiday {
