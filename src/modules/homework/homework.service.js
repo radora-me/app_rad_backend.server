@@ -22,12 +22,17 @@ const ALLOWED_MIME_TYPES = Object.freeze([
 ])
 
 class HomeworkService {
+
   async createHomework(teacherId, data) {
     const course = await repo.findTeacherCourse(teacherId, data.courseId)
 
     if (!course) {
       throw new Error("Unauthorized course access")
     }
+
+    const uploadedFiles = Array.isArray(data.attachments) && data.attachments.length
+      ? await this._uploadAttachments(data.attachments)
+      : []
 
     return repo.transaction(async (tx) => {
       const homework = await tx.homework.create({
@@ -44,8 +49,8 @@ class HomeworkService {
         },
       })
 
-      if (Array.isArray(data.attachments) && data.attachments.length) {
-        await this._saveAttachments(tx, teacherId, homework.id, data.attachments)
+      if (uploadedFiles.length) {
+        await this._saveAttachments(tx, teacherId, homework.id, uploadedFiles)
       }
 
       const result = await tx.homework.findUnique({
@@ -57,10 +62,12 @@ class HomeworkService {
     })
   }
 
-  async _saveAttachments(tx, teacherId, homeworkId, attachments) {
+  async _uploadAttachments(attachments) {
     if (attachments.length > MAX_ATTACHMENTS) {
       throw new Error("Maximum 10 attachments allowed")
     }
+
+    const uploaded = []
 
     for (const attachment of attachments) {
       if (!attachment.fileName) {
@@ -83,22 +90,37 @@ class HomeworkService {
 
       const safeName = this._safeFileName(attachment.fileName)
 
-      const uploaded = await uploadBuffer(buffer, {
+      const result = await uploadBuffer(buffer, {
         folder: "homework",
         public_id: `${Date.now()}-${Math.random().toString(36).slice(2)}-${safeName}`,
         resource_type: "raw",
         use_filename: false,
       })
 
+      uploaded.push({
+        originalName: attachment.fileName,
+        mimeType: attachment.mimeType || "application/octet-stream",
+        extension: path.extname(attachment.fileName) || null,
+        size: buffer.length,
+        publicId: result.public_id,
+        secureUrl: result.secure_url,
+      })
+    }
+
+    return uploaded
+  }
+
+  async _saveAttachments(tx, teacherId, homeworkId, uploadedFiles) {
+    for (const item of uploadedFiles) {
       const file = await tx.file.create({
         data: {
-          fileName: uploaded.public_id,
-          originalName: attachment.fileName,
-          mimeType: attachment.mimeType || "application/octet-stream",
-          extension: path.extname(attachment.fileName) || null,
-          size: buffer.length,
-          storagePath: uploaded.public_id,
-          publicUrl: uploaded.secure_url,
+          fileName: item.publicId,
+          originalName: item.originalName,
+          mimeType: item.mimeType,
+          extension: item.extension,
+          size: item.size,
+          storagePath: item.publicId,
+          publicUrl: item.secureUrl,
           uploadedById: teacherId,
         },
       })
@@ -126,6 +148,10 @@ class HomeworkService {
       throw new Error("Homework not found")
     }
 
+    const uploadedFiles = Array.isArray(data.attachments) && data.attachments.length
+      ? await this._uploadAttachments(data.attachments)
+      : []
+
     return repo.transaction(async (tx) => {
       const updateData = {}
 
@@ -142,7 +168,7 @@ class HomeworkService {
         data: updateData,
       })
 
-      if (Array.isArray(data.attachments) && data.attachments.length) {
+      if (uploadedFiles.length) {
         const existingAttachments = await tx.homeworkAttachment.findMany({
           where: { homeworkId },
           include: { file: true },
@@ -160,7 +186,7 @@ class HomeworkService {
 
         await tx.homeworkAttachment.deleteMany({ where: { homeworkId } })
 
-        await this._saveAttachments(tx, teacherId, homeworkId, data.attachments)
+        await this._saveAttachments(tx, teacherId, homeworkId, uploadedFiles)
       }
 
       const updated = await tx.homework.findUnique({
