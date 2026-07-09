@@ -1,4 +1,4 @@
-const prisma = require("../../core/database/prisma")
+const prisma = require("../../core/database/prisma");
 
 class HomeworkRepository {
   findTeacherCourse(teacherId, courseId) {
@@ -7,14 +7,14 @@ class HomeworkRepository {
         id: courseId,
         teacherId,
       },
-    })
+    });
   }
 
   create(data) {
     return prisma.homework.create({
       data,
       include: this.include(),
-    })
+    });
   }
 
   update(homeworkId, data) {
@@ -24,7 +24,7 @@ class HomeworkRepository {
       },
       data,
       include: this.include(),
-    })
+    });
   }
 
   delete(homeworkId) {
@@ -32,7 +32,7 @@ class HomeworkRepository {
       where: {
         id: homeworkId,
       },
-    })
+    });
   }
 
   listForTeacher(teacherId) {
@@ -46,7 +46,7 @@ class HomeworkRepository {
           createdAt: "desc",
         },
       ],
-    })
+    });
   }
 
   listForStudent(studentId) {
@@ -70,7 +70,7 @@ class HomeworkRepository {
           createdAt: "desc",
         },
       ],
-    })
+    });
   }
 
   findById(homeworkId) {
@@ -79,7 +79,7 @@ class HomeworkRepository {
         id: homeworkId,
       },
       include: this.include(),
-    })
+    });
   }
 
   findAccessibleForTeacher(teacherId, homeworkId) {
@@ -89,7 +89,7 @@ class HomeworkRepository {
         teacherId,
       },
       include: this.include(),
-    })
+    });
   }
 
   findAccessibleForStudent(studentId, homeworkId) {
@@ -106,19 +106,52 @@ class HomeworkRepository {
         },
       },
       include: this.include(),
-    })
+    });
+  }
+
+  findHomeworkWithRosterForTeacher(teacherId, homeworkId) {
+    return prisma.homework.findFirst({
+      where: {
+        id: homeworkId,
+        teacherId,
+      },
+      include: this.includeWithRoster(),
+    });
+  }
+
+  findSubmissionForTeacher(teacherId, homeworkId, studentId) {
+    return prisma.homeworkSubmission.findFirst({
+      where: {
+        homeworkId,
+        studentId,
+        homework: {
+          teacherId,
+        },
+      },
+      include: this.submissionInclude(),
+    });
+  }
+
+  findSubmissionForStudent(studentId, homeworkId) {
+    return prisma.homeworkSubmission.findFirst({
+      where: {
+        homeworkId,
+        studentId,
+      },
+      include: this.submissionInclude(),
+    });
   }
 
   createFile(data) {
     return prisma.file.create({
       data,
-    })
+    });
   }
 
   createHomeworkAttachment(data) {
     return prisma.homeworkAttachment.create({
       data,
-    })
+    });
   }
 
   deleteHomeworkAttachments(homeworkId) {
@@ -126,7 +159,7 @@ class HomeworkRepository {
       where: {
         homeworkId,
       },
-    })
+    });
   }
 
   include() {
@@ -154,21 +187,93 @@ class HomeworkRepository {
       },
 
       submissions: {
+        include: this.submissionInclude(),
+      },
+    };
+  }
+
+  includeWithRoster() {
+    return {
+      teacher: {
         select: {
           id: true,
-          studentId: true,
-          submittedAt: true,
-          status: true,
-          marks: true,
-          gradedAt: true,
+          name: true,
+          email: true,
         },
       },
-    }
+      course: {
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          enrollments: {
+            select: {
+              createdAt: true,
+              student: {
+                select: {
+                  id: true,
+                  name: true,
+                  rollNumber: true,
+                  className: true,
+                  profilePhotoUrl: true,
+                },
+              },
+            },
+            orderBy: [
+              {
+                student: {
+                  rollNumber: "asc",
+                },
+              },
+              {
+                student: {
+                  name: "asc",
+                },
+              },
+            ],
+          },
+        },
+      },
+      attachments: {
+        include: {
+          file: true,
+        },
+      },
+      submissions: {
+        include: this.submissionInclude(),
+      },
+    };
+  }
+
+  submissionInclude() {
+    return {
+      student: {
+        select: {
+          id: true,
+          name: true,
+          rollNumber: true,
+          className: true,
+          profilePhotoUrl: true,
+        },
+      },
+      gradedBy: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+      attachments: {
+        include: {
+          file: true,
+        },
+      },
+    };
   }
 
   transaction(callback) {
-    return prisma.$transaction(callback)
+    return prisma.$transaction(callback);
   }
 }
 
-module.exports = new HomeworkRepository()
+module.exports = new HomeworkRepository();

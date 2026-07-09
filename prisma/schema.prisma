@@ -197,6 +197,7 @@ model Homework {
 
   dueAt DateTime?
   allowLateSubmission Boolean @default(false)
+  resubmissionOpenedAt DateTime?
 
   totalMarks Int?
 
