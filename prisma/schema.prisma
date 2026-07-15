@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum Role {
@@ -62,6 +63,7 @@ model User {
   attendanceRecords Attendance[] @relation("StudentAttendance")
   sentChatMessages  ClassroomMessage[] @relation("ClassroomMessageSender")
   createdHomework Homework[] @relation("HomeworkTeacher")
+  createdNotices Notice[] @relation("NoticeCreator")
 
   homeworkSubmissions HomeworkSubmission[] @relation("HomeworkStudent")
   leaves            Leave[]
@@ -318,6 +320,7 @@ model File {
 
   homeworkAttachments HomeworkAttachment[]
   submissionAttachments SubmissionAttachment[]
+  noticeAttachments NoticeAttachment[]
   isDeleted Boolean @default(false)
 
   createdAt DateTime @default(now())
@@ -336,4 +339,36 @@ model Holiday {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Notice {
+  id String @id @default(uuid())
+
+  title String
+  content String?
+
+  createdById String
+  createdBy User @relation("NoticeCreator", fields: [createdById], references: [id])
+
+  attachments NoticeAttachment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdAt])
+}
+
+model NoticeAttachment {
+  id String @id @default(uuid())
+
+  noticeId String
+  fileId String
+
+  notice Notice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  file File @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([noticeId, fileId])
+  @@index([noticeId])
 }
