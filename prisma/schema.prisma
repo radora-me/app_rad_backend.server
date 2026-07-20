@@ -44,6 +44,29 @@ enum SubmissionStatus {
   GRADED
 }
 
+model StudentProfile {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  address         String?
+  city            String?
+  state           String?
+  pincode         String?
+
+  parentName      String?
+  parentEmail     String?
+  parentPhone     String?
+  parentRelation  String?
+
+  dateOfBirth     DateTime?
+  bloodGroup      String?
+  emergencyPhone  String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
 model User {
   id           String   @id @default(uuid())
   name         String
@@ -69,6 +92,7 @@ model User {
   leaves            Leave[]
   uploadedFiles File[] @relation("UploadedFiles")
   gradedSubmissions HomeworkSubmission[] @relation("HomeworkGrader")
+  studentProfile StudentProfile?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

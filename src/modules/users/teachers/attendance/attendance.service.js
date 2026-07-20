@@ -1,289 +1,205 @@
-const repo = require("./attendance.repository");
+const repo = require('./attendance.repository')
+const { fullDaySchema, subjectWiseSchema } = require('./attendance.validator')
+const prisma = require('../../../../core/database/prisma')
+const { sendAttendanceUpdateEmail } = require('../../../../shared/utils/send.attendance.email')
 
 class AttendanceService {
-  _normalizeToLocalDay(dateInput) {
-    if (dateInput instanceof Date) {
-      return new Date(
-        dateInput.getFullYear(),
-        dateInput.getMonth(),
-        dateInput.getDate(),
-      );
-    }
-
-    if (
-      typeof dateInput === "string" &&
-      /^\d{4}-\d{2}-\d{2}$/.test(dateInput)
-    ) {
-      const [year, month, day] = dateInput.split("-").map(Number);
-      return new Date(year, month - 1, day);
-    }
-
-    const date = new Date(dateInput);
-
-    if (Number.isNaN(date.getTime())) {
-      throw new Error("Invalid date");
-    }
-
-    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  }
-
-  _ensureTodayOnly(dateInput) {
-    const normalizedDate = this._normalizeToLocalDay(dateInput);
-    const today = repo.getTodayNormalized();
-
-    if (!repo.isSameNormalizedDate(normalizedDate, today)) {
-      throw new Error("Attendance can only be marked for today");
-    }
-
-    return normalizedDate;
-  }
 
   _ensureNotSunday(dateInput) {
-    const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
-
-    if (date.getDay() === 0) {
-      throw new Error("Attendance cannot be marked on Sundays");
+    const d = new Date(dateInput)
+    if (d.getDay() === 0) {
+      throw new Error('Attendance cannot be marked on Sundays')
     }
   }
 
-  async _ensureNotHoliday(dateInput) {
-    const holiday = await repo.getHolidayByDate(dateInput);
+  async _sendEmailsForStudents(students, courseId) {
+    try {
+      const studentIds = students.map((s) => s.studentId)
 
-    if (holiday) {
-      throw new Error(`Attendance is not allowed on holidays: ${holiday.name}`);
+      const records = await prisma.user.findMany({
+        where: { id: { in: studentIds } },
+        select: {
+          id: true,
+          name: true,
+          className: true,
+          studentProfile: { select: { parentEmail: true, parentName: true } },
+          enrollments: {
+            where: courseId ? { courseId } : undefined,
+            include: { course: { select: { description: true } } },
+            take: 1,
+          },
+        },
+      })
+
+      const recordMap = new Map(records.map((r) => [r.id, r]))
+
+      for (const s of students) {
+        const user = recordMap.get(s.studentId)
+        if (!user) continue
+
+        const parentEmail = user.studentProfile?.parentEmail
+        if (!parentEmail) continue
+
+        const section = user.enrollments?.[0]?.course?.description || ''
+
+        sendAttendanceUpdateEmail({
+          to: parentEmail,
+          studentName: user.name,
+          className: user.className || '',
+          section,
+          attendanceDate: new Date().toLocaleDateString(),
+          status: s.status,
+        }).catch(() => {})
+      }
+    } catch {
+      // email errors must never break attendance
     }
   }
 
-  async markFullDayAttendance(teacherId, data) {
-    const courseId = data.courseId || null;
-    const normalizedDate = this._ensureTodayOnly(data.date);
-    const allowEdit = Boolean(data.allowEdit);
+  async markFullDayAttendance(teacherId, body) {
+    const { error, value } = fullDaySchema.validate(body)
+    if (error) throw new Error(error.message)
 
-    this._ensureNotSunday(normalizedDate);
-    await this._ensureNotHoliday(normalizedDate);
+    this._ensureNotSunday(value.date)
+
+    const holiday = await repo.getHolidayByDate(value.date)
+    if (holiday) throw new Error(`Cannot mark attendance on a holiday: ${holiday.title}`)
+
+    const courseId = value.courseId || null
 
     if (courseId) {
-      const validCourse = await repo.verifyTeacherCourse(courseId, teacherId);
-
-      if (!validCourse) {
-        throw new Error("Unauthorized course access");
-      }
+      const course = await repo.verifyTeacherCourse(courseId, teacherId)
+      if (!course) throw new Error('Course not found or not assigned to you')
     }
 
-    const studentIds = data.students.map((student) => student.studentId);
-    const existingAttendance = await repo.getAttendanceByCourseAndStudents(
-      courseId,
-      normalizedDate,
-      studentIds,
-    );
+    const results = []
 
-    if (existingAttendance.length > 0 && !allowEdit) {
-      throw new Error("Attendance already marked. Use edit mode.");
-    }
-
-    const lockedStudentIds = existingAttendance
-      .filter((record) => !repo.isWithinEditWindow(record.createdAt))
-      .map((record) => record.studentId);
-
-    if (lockedStudentIds.length > 0) {
-      throw new Error("Attendance can only be edited within 48 hours");
-    }
-
-    const promises = data.students.map((student) => {
-      return repo.upsertAttendance({
+    for (const student of value.students) {
+      const record = await repo.upsertAttendance({
         studentId: student.studentId,
-
         courseId,
-
-        date: normalizedDate,
-
-        mode: "FULL_DAY",
-
+        date: value.date,
+        mode: 'FULL_DAY',
         status: student.status,
-
         markedBy: teacherId,
-      });
-    });
+      })
+      results.push(record)
+    }
 
-    await Promise.all(promises);
+    this._sendEmailsForStudents(value.students, courseId).catch(() => {})
 
-    return {
-      message: "Full day attendance marked successfully",
-    };
+    return results
   }
 
-  async markSubjectWiseAttendance(teacherId, data) {
-    const validCourse = await repo.verifyTeacherCourse(
-      data.courseId,
-      teacherId,
-    );
+  async markSubjectWiseAttendance(teacherId, body) {
+    const { error, value } = subjectWiseSchema.validate(body)
+    if (error) throw new Error(error.message)
 
-    const normalizedDate = this._ensureTodayOnly(data.date);
-    const allowEdit = Boolean(data.allowEdit);
+    this._ensureNotSunday(value.date)
 
-    this._ensureNotSunday(normalizedDate);
-    await this._ensureNotHoliday(normalizedDate);
+    const course = await repo.verifyTeacherCourse(value.courseId, teacherId)
+    if (!course) throw new Error('Course not found or not assigned to you')
 
-    if (!validCourse) {
-      throw new Error("Unauthorized course access");
-    }
+    const holiday = await repo.getHolidayByDate(value.date)
+    if (holiday) throw new Error(`Cannot mark attendance on a holiday: ${holiday.title}`)
 
-    const studentIds = data.students.map((student) => student.studentId);
-    const existingAttendance = await repo.getAttendanceByCourseAndStudents(
-      data.courseId,
-      normalizedDate,
-      studentIds,
-    );
+    const results = []
 
-    if (existingAttendance.length > 0 && !allowEdit) {
-      throw new Error("Attendance already marked. Use edit mode.");
-    }
-
-    const lockedStudentIds = existingAttendance
-      .filter((record) => !repo.isWithinEditWindow(record.createdAt))
-      .map((record) => record.studentId);
-
-    if (lockedStudentIds.length > 0) {
-      throw new Error("Attendance can only be edited within 48 hours");
-    }
-
-    const promises = data.students.map((student) => {
-      return repo.upsertAttendance({
+    for (const student of value.students) {
+      const record = await repo.upsertAttendance({
         studentId: student.studentId,
-
-        courseId: data.courseId,
-
-        date: normalizedDate,
-
-        mode: "SUBJECT_WISE",
-
+        courseId: value.courseId,
+        date: value.date,
+        mode: 'SUBJECT_WISE',
         status: student.status,
-
         markedBy: teacherId,
-      });
-    });
+      })
+      results.push(record)
+    }
 
-    await Promise.all(promises);
+    this._sendEmailsForStudents(value.students, value.courseId).catch(() => {})
 
-    return {
-      message: "Subject-wise attendance marked successfully",
-    };
+    return results
   }
 
   async getCourseStudents(courseId) {
-    return repo.getCourseStudents(courseId);
+    const enrollments = await repo.getCourseStudents(courseId)
+
+    return enrollments.map((enrollment) => ({
+      studentId: enrollment.student.id,
+      name: enrollment.student.name,
+      rollNumber: enrollment.student.rollNumber,
+      status: 'PRESENT',
+      isMarked: false,
+      canEdit: false,
+    }))
+  }
+
+  async getCourseAttendance(courseId, date) {
+    const enrollments = await repo.getCourseStudents(courseId)
+
+    if (enrollments.length === 0) return []
+
+    const studentIds = enrollments.map((e) => e.student.id)
+    const attendanceRecords = await repo.getAttendanceByCourseAndStudents(courseId, date, studentIds)
+
+    const recordMap = new Map(attendanceRecords.map((r) => [r.studentId, r]))
+
+    return enrollments.map((enrollment) => {
+      const record = recordMap.get(enrollment.student.id)
+      return {
+        studentId: enrollment.student.id,
+        name: enrollment.student.name,
+        rollNumber: enrollment.student.rollNumber,
+        status: record?.status || 'PRESENT',
+        isMarked: !!record,
+        canEdit: record ? repo.isWithinEditWindow(record.createdAt) : true,
+      }
+    })
   }
 
   async getHolidays() {
-    return repo.listHolidays();
+    return repo.listHolidays()
   }
 
   async getStudentAttendance(courseId, rollNumber, date) {
-    const enrollment = await repo.getCourseStudentByRollNumber(
-      courseId,
-      rollNumber,
-    );
+    const enrollment = await repo.getCourseStudentByRollNumber(courseId, rollNumber)
+    if (!enrollment) throw new Error('Student not found in this class')
 
-    if (!enrollment) {
-      throw new Error("Student not found in this class");
-    }
-
-    const attendance = await repo.getStudentAttendanceByRollNumber(
-      courseId,
-      rollNumber,
-      date,
-    );
+    const record = await repo.getStudentAttendanceByRollNumber(courseId, rollNumber, date)
 
     return {
       studentId: enrollment.student.id,
       name: enrollment.student.name,
       rollNumber: enrollment.student.rollNumber,
-      courseId: enrollment.course.id,
       courseTitle: enrollment.course.title,
-      date,
-      status: attendance?.status || "PRESENT",
-      isMarked: Boolean(attendance),
-      canEdit: attendance
-        ? repo.isWithinEditWindow(attendance.createdAt)
-        : false,
-      createdAt: attendance?.createdAt || null,
-    };
+      date: repo.normalizeDate(date).toISOString().split('T')[0],
+      status: record?.status || null,
+      isMarked: !!record,
+      canEdit: record ? repo.isWithinEditWindow(record.createdAt) : true,
+    }
   }
 
-  async updateStudentAttendance(teacherId, courseId, rollNumber, data) {
-    const validCourse = await repo.verifyTeacherCourse(courseId, teacherId);
+  async updateStudentAttendance(teacherId, courseId, rollNumber, body) {
+    const enrollment = await repo.getCourseStudentByRollNumber(courseId, rollNumber)
+    if (!enrollment) throw new Error('Student not found in this class')
 
-    if (!validCourse) {
-      throw new Error("Unauthorized course access");
-    }
+    this._ensureNotSunday(body.date)
 
-    const enrollment = await repo.getCourseStudentByRollNumber(
-      courseId,
-      rollNumber,
-    );
+    const holiday = await repo.getHolidayByDate(body.date)
+    if (holiday) throw new Error(`Cannot mark attendance on a holiday: ${holiday.title}`)
 
-    if (!enrollment) {
-      throw new Error("Student not found in this class");
-    }
-
-    const attendance = await repo.getStudentAttendanceByRollNumber(
-      courseId,
-      rollNumber,
-      data.date,
-    );
-
-    this._ensureNotSunday(data.date);
-    await this._ensureNotHoliday(data.date);
-
-    if (!attendance) {
-      throw new Error("Attendance record not found for selected date");
-    }
-
-    if (!repo.isWithinEditWindow(attendance.createdAt)) {
-      throw new Error("Attendance can only be edited within 48 hours");
-    }
-
-    const updated = await repo.upsertAttendance({
+    const record = await repo.upsertAttendance({
       studentId: enrollment.student.id,
       courseId,
-      date: data.date,
-      mode: attendance.mode,
-      status: data.status,
+      date: body.date,
+      mode: 'SUBJECT_WISE',
+      status: body.status,
       markedBy: teacherId,
-    });
+    })
 
-    return {
-      message: "Attendance updated successfully",
-      attendance: updated,
-    };
-  }
-
-  async getCourseAttendance(courseId, date) {
-    const students = await repo.getCourseStudents(courseId);
-    const attendance = await repo.getCourseAttendance(courseId, date);
-
-    const statusByStudentId = new Map(
-      attendance.map((record) => [record.studentId, record]),
-    );
-
-    const canEdit = attendance.some((record) =>
-      repo.isWithinEditWindow(record.createdAt),
-    );
-
-    return students.map((enrollment) => {
-      const statusRecord = statusByStudentId.get(enrollment.studentId);
-
-      return {
-        studentId: enrollment.student.id,
-        name: enrollment.student.name,
-        rollNumber: enrollment.student.rollNumber,
-        status: statusRecord?.status || "PRESENT",
-        isMarked: Boolean(statusRecord),
-        canEdit: Boolean(statusRecord) && canEdit,
-        createdAt: statusRecord?.createdAt || null,
-      };
-    });
+    return record
   }
 }
 
-module.exports = new AttendanceService();
+module.exports = new AttendanceService()

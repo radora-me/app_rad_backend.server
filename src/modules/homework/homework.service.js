@@ -2,6 +2,8 @@ const path = require("path");
 
 const repo = require("./homework.repository");
 const { uploadBuffer, deleteFile } = require("../../core/storage/cloudinary");
+const prisma = require("../../core/database/prisma");
+const { sendHomeworkEmail } = require("../../shared/utils/send.homework.email");
 
 const MAX_ATTACHMENTS = 10;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -22,6 +24,45 @@ const ALLOWED_MIME_TYPES = Object.freeze([
 ]);
 
 class HomeworkService {
+  async _sendHomeworkEmails(homework) {
+    try {
+      const enrollments = await prisma.enrollment.findMany({
+        where: { courseId: homework.course.id },
+        select: {
+          student: {
+            select: {
+              id: true,
+              name: true,
+              className: true,
+              studentProfile: { select: { parentEmail: true, parentName: true } },
+            },
+          },
+        },
+      })
+
+      for (const { student } of enrollments) {
+        const parentEmail = student.studentProfile?.parentEmail
+        if (!parentEmail) continue
+
+        sendHomeworkEmail({
+          to: parentEmail,
+          parentName: student.studentProfile?.parentName || null,
+          studentName: student.name,
+          className: student.className || '',
+          homeworkTitle: homework.title,
+          description: homework.description || null,
+          instructions: homework.instructions || null,
+          dueAt: homework.dueAt || null,
+          teacherName: homework.teacher?.name || '',
+          courseName: homework.course?.title || '',
+          attachments: homework.attachments || [],
+        }).catch(() => {})
+      }
+    } catch {
+      // never break homework creation
+    }
+  }
+
   async createHomework(teacherId, data) {
     const course = await repo.findTeacherCourse(teacherId, data.courseId);
 
@@ -34,7 +75,7 @@ class HomeworkService {
         ? await this._uploadAttachments(data.attachments)
         : [];
 
-    return repo.transaction(async (tx) => {
+    const created = await repo.transaction(async (tx) => {
       const homework = await tx.homework.create({
         data: {
           title: data.title.trim(),
@@ -60,6 +101,9 @@ class HomeworkService {
 
       return this._toPayload(result);
     });
+
+    this._sendHomeworkEmails(created).catch(() => {});
+    return created;
   }
 
   async _uploadAttachments(attachments) {

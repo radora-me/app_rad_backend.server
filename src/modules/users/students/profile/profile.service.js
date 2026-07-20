@@ -28,6 +28,8 @@ class StudentProfileService {
       holidays,
     );
 
+    const sp = user.studentProfile || {};
+
     return {
       id: user.id,
       name: user.name,
@@ -42,6 +44,17 @@ class StudentProfileService {
         title: enrollment.course.title,
         description: enrollment.course.description,
       })),
+      address: sp.address || null,
+      city: sp.city || null,
+      state: sp.state || null,
+      pincode: sp.pincode || null,
+      parentName: sp.parentName || null,
+      parentEmail: sp.parentEmail || null,
+      parentPhone: sp.parentPhone || null,
+      parentRelation: sp.parentRelation || null,
+      dateOfBirth: sp.dateOfBirth || null,
+      bloodGroup: sp.bloodGroup || null,
+      emergencyPhone: sp.emergencyPhone || null,
     };
   }
 

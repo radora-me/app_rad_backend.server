@@ -5,12 +5,9 @@ class StudentProfileRepository {
     return prisma.user.findUnique({
       where: { id: studentId },
       include: {
-        enrollments: {
-          include: {
-            course: true,
-          },
-        },
+        enrollments: { include: { course: true } },
         attendanceRecords: true,
+        studentProfile: true,
       },
     });
   }

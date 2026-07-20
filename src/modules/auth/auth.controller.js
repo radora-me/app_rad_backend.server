@@ -6,6 +6,11 @@ const {
   createStudentSchema,
   createTeacherSchema,
   createHolidaySchema,
+  forgotPasswordSchema,
+  verifyOtpSchema,
+  resetPasswordSchema,
+  updateTeacherSchema,
+  updateAdminSchema,
 } = require("./auth.validator");
 const Joi = require("joi");
 
@@ -161,6 +166,90 @@ class AuthController {
   async logout(req, res) {
     try {
       const result = await service.logout(req.user.id);
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+
+  async forgotPassword(req, res) {
+    try {
+      const { error } = forgotPasswordSchema.validate(req.body);
+      if (error) return res.status(400).json({ error: error.message });
+      const result = await service.forgotPassword(req.body.email);
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+
+  async verifyOtp(req, res) {
+    try {
+      const { error } = verifyOtpSchema.validate(req.body);
+      if (error) return res.status(400).json({ error: error.message });
+      const result = await service.verifyOtp(req.body.email, req.body.otp);
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+
+  async listTeachers(req, res) {
+    try {
+      const result = await service.listTeachers();
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+
+  async getTeacher(req, res) {
+    try {
+      const result = await service.getTeacher(req.params.teacherId);
+      res.json(result);
+    } catch (err) {
+      const status = err.message === "Teacher not found" ? 404 : 400;
+      res.status(status).json({ error: err.message });
+    }
+  }
+
+  async updateTeacher(req, res) {
+    try {
+      const { error } = updateTeacherSchema.validate(req.body);
+      if (error) return res.status(400).json({ error: error.message });
+      const result = await service.updateTeacher(req.params.teacherId, req.body);
+      res.json(result);
+    } catch (err) {
+      const status = err.message === "Teacher not found" ? 404 : 400;
+      res.status(status).json({ error: err.message });
+    }
+  }
+
+  async getAdminProfile(req, res) {
+    try {
+      const result = await service.getAdminProfile(req.user.id);
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+
+  async updateAdminProfile(req, res) {
+    try {
+      const { error } = updateAdminSchema.validate(req.body);
+      if (error) return res.status(400).json({ error: error.message });
+      const result = await service.updateAdminProfile(req.user.id, req.body);
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+
+  async resetPassword(req, res) {
+    try {
+      const { error } = resetPasswordSchema.validate(req.body);
+      if (error) return res.status(400).json({ error: error.message });
+      const result = await service.resetPassword(req.body.resetToken, req.body.newPassword);
       res.json(result);
     } catch (err) {
       res.status(400).json({ error: err.message });

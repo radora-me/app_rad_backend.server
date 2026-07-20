@@ -1,6 +1,8 @@
 const path = require("path");
 const repo = require("./notice.repository");
 const { uploadBuffer, deleteFile } = require("../../core/storage/cloudinary");
+const prisma = require("../../core/database/prisma");
+const { sendNoticeEmail } = require("../../shared/utils/send.notice.email");
 
 const MAX_ATTACHMENTS = 10;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -21,6 +23,36 @@ const ALLOWED_MIME_TYPES = Object.freeze([
 ]);
 
 class NoticeService {
+  async _sendNoticeEmails(notice) {
+    try {
+      const students = await prisma.user.findMany({
+        where: { role: 'student' },
+        select: {
+          name: true,
+          studentProfile: { select: { parentEmail: true, parentName: true } },
+        },
+      })
+
+      for (const student of students) {
+        const parentEmail = student.studentProfile?.parentEmail
+        if (!parentEmail) continue
+
+        sendNoticeEmail({
+          to: parentEmail,
+          parentName: student.studentProfile?.parentName || null,
+          studentName: student.name,
+          noticeTitle: notice.title,
+          content: notice.content || null,
+          postedBy: notice.createdBy?.name || MAIL_FROM_NAME,
+          postedAt: notice.createdAt,
+          attachments: notice.attachments || [],
+        }).catch(() => {})
+      }
+    } catch {
+      // never break notice creation
+    }
+  }
+
   async listNotices() {
     const notices = await repo.list();
     return notices.map((n) => this._toPayload(n));
@@ -32,7 +64,7 @@ class NoticeService {
         ? await this._uploadAttachments(data.attachments)
         : [];
 
-    return repo.transaction(async (tx) => {
+    const created = await repo.transaction(async (tx) => {
       const notice = await tx.notice.create({
         data: {
           title: data.title.trim(),
@@ -52,6 +84,9 @@ class NoticeService {
 
       return this._toPayload(result);
     });
+
+    this._sendNoticeEmails(created).catch(() => {});
+    return created;
   }
 
   async deleteNotice(adminId, noticeId) {

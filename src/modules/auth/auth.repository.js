@@ -96,6 +96,49 @@ class AuthRepository {
       orderBy: { date: "asc" },
     });
   }
+
+  async updatePassword(userId, hashedPassword) {
+    return prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword },
+    });
+  }
+
+  async updateUser(userId, data) {
+    return prisma.user.update({
+      where: { id: userId },
+      data,
+      include: { taughtCourses: true },
+    });
+  }
+
+  async findTeacherById(id) {
+    return prisma.user.findFirst({
+      where: { id, role: "teacher" },
+      include: { taughtCourses: true },
+    });
+  }
+
+  async listAllTeachers() {
+    return prisma.user.findMany({
+      where: { role: "teacher" },
+      include: { taughtCourses: true },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  async findAdminById(id) {
+    return prisma.user.findFirst({
+      where: { id, role: "admin" },
+    });
+  }
+
+  async findByEmailExcluding(email, excludeId) {
+    return prisma.user.findFirst({
+      where: { email, NOT: { id: excludeId } },
+    });
+  }
 }
+
 
 module.exports = new AuthRepository();

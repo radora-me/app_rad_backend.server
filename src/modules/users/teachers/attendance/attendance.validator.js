@@ -13,6 +13,10 @@ exports.fullDaySchema = Joi.object({
 
   date: notSunday.required(),
 
+  courseId: Joi.string().optional(),
+
+  allowEdit: Joi.boolean().optional(),
+
   students: Joi.array().items(
 
     Joi.object({

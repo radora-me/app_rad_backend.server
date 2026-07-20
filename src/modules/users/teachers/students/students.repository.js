@@ -27,11 +27,8 @@ class TeacherStudentsRepository {
     return prisma.user.findUnique({
       where: { rollNumber },
       include: {
-        enrollments: {
-          include: {
-            course: true,
-          },
-        },
+        enrollments: { include: { course: true } },
+        studentProfile: true,
       },
     });
   }
@@ -40,24 +37,13 @@ class TeacherStudentsRepository {
     return prisma.user.findMany({
       where: {
         role: "student",
-        enrollments: {
-          some: {
-            course: {
-              teacherId,
-            },
-          },
-        },
+        enrollments: { some: { course: { teacherId } } },
       },
       include: {
-        enrollments: {
-          include: {
-            course: true,
-          },
-        },
+        enrollments: { include: { course: true } },
+        studentProfile: true,
       },
-      orderBy: {
-        name: "asc",
-      },
+      orderBy: { name: "asc" },
     });
   }
 
@@ -67,6 +53,14 @@ class TeacherStudentsRepository {
         id: { in: courseIds },
         teacherId,
       },
+    });
+  }
+
+  async upsertStudentProfile(studentId, data) {
+    return prisma.studentProfile.upsert({
+      where: { userId: studentId },
+      create: { userId: studentId, ...data },
+      update: { ...data },
     });
   }
 

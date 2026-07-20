@@ -15,26 +15,21 @@ class TeacherStudentsService {
         title: enrollment.course.title,
         description: enrollment.course.description,
       })),
-      // Add info about existing class assignments
       existingTeacherIds: [
         ...new Set((user.enrollments || []).map((e) => e.course.teacherId)),
       ],
+      studentProfile: user.studentProfile || null,
     };
   }
 
   async findByRollNumber(teacherId, rollNumber) {
     const student = await repo.findStudentByRollNumber(rollNumber);
-
-    if (!student || student.role !== "student") {
-      throw new Error("Student not found");
-    }
-
+    if (!student || student.role !== "student") throw new Error("Student not found");
     return this._toStudentPayload(student);
   }
 
   async list(teacherId) {
     const students = await repo.findStudentsByTeacher(teacherId);
-
     return students.map((student) => {
       const teacherCourses = student.enrollments
         .filter((enrollment) => enrollment.course.teacherId === teacherId)
@@ -43,7 +38,6 @@ class TeacherStudentsService {
           title: enrollment.course.title,
           description: enrollment.course.description,
         }));
-
       return {
         id: student.id,
         name: student.name,
@@ -52,24 +46,33 @@ class TeacherStudentsService {
         profilePhotoUrl: student.profilePhotoUrl || null,
         courses: teacherCourses,
         addedAt: student.createdAt,
+        studentProfile: student.studentProfile || null,
       };
     });
   }
 
   async upsertStudent(teacherId, rollNumber, data) {
     const student = await repo.findStudentByRollNumber(rollNumber);
-
-    if (!student || student.role !== "student") {
-      throw new Error("Student not found");
-    }
-
+    if (!student || student.role !== "student") throw new Error("Student not found");
     const updated = await repo.syncStudentCourses({
       studentId: student.id,
       teacherId,
       courseIds: Array.isArray(data.courseIds) ? data.courseIds : [],
     });
-
     return this._toStudentPayload(updated);
+  }
+
+  async updateStudentProfile(rollNumber, data) {
+    const student = await repo.findStudentByRollNumber(rollNumber);
+    if (!student || student.role !== "student") throw new Error("Student not found");
+    const updated = await repo.upsertStudentProfile(student.id, data);
+    return updated;
+  }
+
+  async getFullProfile(rollNumber) {
+    const student = await repo.findStudentByRollNumber(rollNumber);
+    if (!student || student.role !== "student") throw new Error("Student not found");
+    return this._toStudentPayload(student);
   }
 }
 
