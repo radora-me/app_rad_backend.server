@@ -327,6 +327,10 @@ Student message: ${message}`;
     return `https://router.huggingface.co/v1/chat/completions`;
   }
 
+  _getHfModelName(model) {
+    return String(model || "").replace(/:.*$/, "").trim();
+  }
+
   _createTimeoutSignal(timeoutMs) {
     if (
       typeof AbortSignal !== "undefined" &&

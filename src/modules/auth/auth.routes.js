@@ -10,6 +10,7 @@ router.post("/login/teacher", (req, res) => controller.teacherLogin(req, res));
 router.post("/refresh", (req, res) => controller.refresh(req, res));
 router.post("/forgot-password", (req, res) => controller.forgotPassword(req, res));
 router.post("/verify-otp", (req, res) => controller.verifyOtp(req, res));
+router.post("/verify-reset-link", (req, res) => controller.verifyResetLink(req, res));
 router.post("/reset-password", (req, res) => controller.resetPassword(req, res));
 
 // Authenticated

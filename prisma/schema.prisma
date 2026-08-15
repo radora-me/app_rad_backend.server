@@ -80,6 +80,7 @@ model User {
   refreshTokens    RefreshToken[]
   sessions         Session[]
   otps             OTP[]
+  deviceTokens     DeviceToken[]
 
   taughtCourses     Course[]     @relation("TeacherCourses")
   enrollments       Enrollment[] @relation("StudentEnrollments")
@@ -93,9 +94,26 @@ model User {
   uploadedFiles File[] @relation("UploadedFiles")
   gradedSubmissions HomeworkSubmission[] @relation("HomeworkGrader")
   studentProfile StudentProfile?
+  timetableEntries TimetableEntry[] @relation("TimetableEntryTeacher")
+  createdTimetables Timetable[] @relation("TimetableCreator")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model DeviceToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String
+  platform  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, token])
+  @@index([userId])
 }
 
 model RefreshToken {
@@ -153,6 +171,8 @@ model Course {
   attendance Attendance[]
   chatMessages ClassroomMessage[]
   homework Homework[]
+  timetableAssignments TimetableAssignment[]
+  timetableEntries TimetableEntry[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -395,4 +415,51 @@ model NoticeAttachment {
 
   @@unique([noticeId, fileId])
   @@index([noticeId])
+}
+
+model Timetable {
+  id String @id @default(uuid())
+  name String
+  className String
+  section String?
+  isPublished Boolean @default(true)
+  createdById String
+  createdBy User @relation("TimetableCreator", fields: [createdById], references: [id])
+  entries TimetableEntry[]
+  assignments TimetableAssignment[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([className, section])
+  @@index([createdById])
+}
+
+model TimetableEntry {
+  id String @id @default(uuid())
+  timetableId String
+  dayOfWeek Int
+  startTime String
+  endTime String
+  subject String
+  room String?
+  teacherId String?
+  courseId String?
+  timetable Timetable @relation(fields: [timetableId], references: [id], onDelete: Cascade)
+  teacher User? @relation("TimetableEntryTeacher", fields: [teacherId], references: [id])
+  course Course? @relation(fields: [courseId], references: [id])
+
+  @@unique([timetableId, dayOfWeek, startTime, endTime])
+  @@index([teacherId])
+  @@index([courseId])
+}
+
+model TimetableAssignment {
+  id String @id @default(uuid())
+  timetableId String
+  courseId String
+  timetable Timetable @relation(fields: [timetableId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([timetableId, courseId])
+  @@index([courseId])
 }

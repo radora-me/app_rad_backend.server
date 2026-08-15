@@ -1,27 +1,17 @@
 const path = require("path");
 
 const repo = require("./homework.repository");
-const { uploadBuffer, deleteFile } = require("../../core/storage/cloudinary");
+const {
+  uploadBuffer,
+  deleteFile,
+  getAttachmentDownloadUrl,
+} = require("../../core/storage/cloudinary");
 const prisma = require("../../core/database/prisma");
+const { isAllowedAttachmentType } = require("../../core/storage/fileTypePolicy");
 const { sendHomeworkEmail } = require("../../shared/utils/send.homework.email");
 
 const MAX_ATTACHMENTS = 10;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
-
-const ALLOWED_MIME_TYPES = Object.freeze([
-  "application/pdf",
-  "image/png",
-  "image/jpeg",
-  "image/jpg",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-powerpoint",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "text/plain",
-  "application/zip",
-]);
 
 class HomeworkService {
   async _sendHomeworkEmails(homework) {
@@ -122,7 +112,7 @@ class HomeworkService {
         throw new Error("Attachment content is missing");
       }
 
-      if (!ALLOWED_MIME_TYPES.includes(attachment.mimeType)) {
+      if (!isAllowedAttachmentType(attachment.fileName, attachment.mimeType)) {
         throw new Error("Unsupported attachment type");
       }
 
@@ -138,6 +128,7 @@ class HomeworkService {
         folder: "homework",
         public_id: `${Date.now()}-${Math.random().toString(36).slice(2)}-${safeName}`,
         resource_type: "raw",
+        format: path.extname(attachment.fileName).slice(1) || undefined,
         use_filename: false,
       });
 
@@ -353,7 +344,7 @@ class HomeworkService {
     }
 
     return {
-      url: attachment.file.publicUrl,
+      url: getAttachmentDownloadUrl(attachment.file.publicUrl),
       fileName: attachment.file.originalName,
       mimeType: attachment.file.mimeType,
     };
@@ -375,7 +366,7 @@ class HomeworkService {
     }
 
     return {
-      url: attachment.file.publicUrl,
+      url: getAttachmentDownloadUrl(attachment.file.publicUrl),
       fileName: attachment.file.originalName,
       mimeType: attachment.file.mimeType,
     };
@@ -694,7 +685,7 @@ class HomeworkService {
     }
 
     return {
-      url: attachment.file.publicUrl,
+      url: getAttachmentDownloadUrl(attachment.file.publicUrl),
       fileName: attachment.file.originalName,
       mimeType: attachment.file.mimeType,
     };
@@ -719,7 +710,7 @@ class HomeworkService {
     }
 
     return {
-      url: attachment.file.publicUrl,
+      url: getAttachmentDownloadUrl(attachment.file.publicUrl),
       fileName: attachment.file.originalName,
       mimeType: attachment.file.mimeType,
     };

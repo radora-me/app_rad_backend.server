@@ -9,6 +9,8 @@ const studentAttendanceRoutes = require("../../modules/users/students/attendance
 const studentProfileRoutes = require("../../modules/users/students/profile/profile.routes");
 const studentAiTutorRoutes = require("../../modules/users/students/ai/tutor.routes");
 const noticeRoutes = require("../../modules/notice/notice.routes");
+const timetableRoutes = require("../../modules/timetable/timetable.routes");
+const notificationRoutes = require("../../modules/notifications/notifications.routes");
 
 router.use("/auth", authRoutes);
 router.use("/teacher/attendance", teacherAttendanceRoutes);
@@ -19,6 +21,8 @@ router.use("/student/attendance", studentAttendanceRoutes);
 router.use("/student/ai/tutor", studentAiTutorRoutes);
 router.use("/student", studentProfileRoutes);
 router.use("/notices", noticeRoutes);
+router.use("/timetables", timetableRoutes);
+router.use("/notifications", notificationRoutes);
 
 console.log("Main routes loaded");
 module.exports = router;

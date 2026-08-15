@@ -194,6 +194,17 @@ class AuthController {
     }
   }
 
+  async verifyResetLink(req, res) {
+    try {
+      const { error } = resetPasswordSchema.extract("resetToken").validate(req.body.resetToken);
+      if (error) return res.status(400).json({ error: error.message });
+      const result = await service.verifyResetLink(req.body.resetToken);
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+
   async listTeachers(req, res) {
     try {
       const result = await service.listTeachers();

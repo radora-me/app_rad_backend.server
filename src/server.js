@@ -1,12 +1,14 @@
 require('dotenv').config()
 
 const app = require('./app')
-const redis = require('./core/cache/redis') // 👈 ADD THIS
+const redis = require('./core/cache/redis')
+const { ensureLogoReady } = require('./shared/utils/email.logo')
 
-app.listen(5000, async () => {
-  console.log('Server running')
+const PORT = Number(process.env.PORT) || 5000
 
-  // 🔥 TEMP REDIS TEST
+app.listen(PORT, async () => {
+  console.log(`Server running on port ${PORT}`)
+
   try {
     await redis.set('test', 'radora')
     const value = await redis.get('test')
@@ -14,4 +16,7 @@ app.listen(5000, async () => {
   } catch (err) {
     console.log('Redis test failed:', err.message)
   }
+
+  // Warm the logo URL cache so all emails have it ready
+  ensureLogoReady().catch(() => {})
 })

@@ -2,6 +2,7 @@ const repo = require('./attendance.repository')
 const { fullDaySchema, subjectWiseSchema } = require('./attendance.validator')
 const prisma = require('../../../../core/database/prisma')
 const { sendAttendanceUpdateEmail } = require('../../../../shared/utils/send.attendance.email')
+const notificationsService = require('../../../notifications/notifications.service')
 
 class AttendanceService {
 
@@ -21,38 +22,82 @@ class AttendanceService {
         select: {
           id: true,
           name: true,
-          className: true,
-          studentProfile: { select: { parentEmail: true, parentName: true } },
+          studentProfile: { select: { parentEmail: true } },
           enrollments: {
             where: courseId ? { courseId } : undefined,
-            include: { course: { select: { description: true } } },
+            orderBy: { createdAt: 'desc' },
+            include: { course: { select: { title: true, description: true } } },
             take: 1,
           },
         },
       })
 
-      const recordMap = new Map(records.map((r) => [r.id, r]))
+      // Build a status lookup keyed by studentId for O(1) access
+      const statusMap = new Map(students.map((s) => [s.studentId, s.status]))
 
-      for (const s of students) {
-        const user = recordMap.get(s.studentId)
-        if (!user) continue
+      // ISO date string is locale-independent and consistent across all server environments
+      const attendanceDate = new Date().toISOString().split('T')[0]
 
-        const parentEmail = user.studentProfile?.parentEmail
-        if (!parentEmail) continue
+      const emailPromises = records
+        .filter((user) => !!user.studentProfile?.parentEmail)
+        .map((user) => {
+          const course = user.enrollments?.[0]?.course
+          // Course.title is the authoritative class name (set at course creation).
+          // User.className is a denormalised copy that may lag or be absent.
+          const className = course?.title?.trim() || ''
+          const section = course?.description?.trim() || ''
 
-        const section = user.enrollments?.[0]?.course?.description || ''
+          return sendAttendanceUpdateEmail({
+            to: user.studentProfile.parentEmail,
+            studentName: user.name,
+            className,
+            section,
+            attendanceDate,
+            status: statusMap.get(user.id),
+          }).catch((err) => {
+            console.error(`Attendance email failed for student ${user.id}:`, err.message)
+          })
+        })
 
-        sendAttendanceUpdateEmail({
-          to: parentEmail,
-          studentName: user.name,
-          className: user.className || '',
-          section,
-          attendanceDate: new Date().toLocaleDateString(),
-          status: s.status,
-        }).catch(() => {})
+      await Promise.allSettled(emailPromises)
+    } catch (err) {
+      // email errors must never break attendance marking
+      console.error('_sendEmailsForStudents error:', err.message)
+    }
+  }
+
+  async _notifyStudentsOfAttendance(students, courseId, savedByName = 'teacher') {
+    try {
+      const studentIds = [...new Set(students.map((s) => s.studentId))]
+      if (!studentIds.length) return
+
+      const studentsWithProfile = await prisma.user.findMany({
+        where: { id: { in: studentIds } },
+        select: {
+          id: true,
+          name: true,
+          enrollments: {
+            where: courseId ? { courseId } : undefined,
+            include: { course: { select: { title: true } } },
+            take: 1,
+          },
+        },
+      })
+
+      for (const student of studentsWithProfile) {
+        const courseTitle = student.enrollments?.[0]?.course?.title || 'your class'
+        await notificationsService.sendToUser(
+          student.id,
+          'Attendance updated',
+          `${savedByName} updated ${student.name || 'your'} attendance for ${courseTitle}.`,
+          {
+            type: 'attendance_update',
+            courseId: courseId || null,
+          },
+        )
       }
     } catch {
-      // email errors must never break attendance
+      // push failures must not block attendance updates
     }
   }
 
@@ -66,15 +111,43 @@ class AttendanceService {
     if (holiday) throw new Error(`Cannot mark attendance on a holiday: ${holiday.title}`)
 
     const courseId = value.courseId || null
+    const allowEdit = Boolean(value.allowEdit)
 
     if (courseId) {
       const course = await repo.verifyTeacherCourse(courseId, teacherId)
       if (!course) throw new Error('Course not found or not assigned to you')
     }
 
+    // Pre-fetch existing records for today so we can honour allowEdit
+    const normalizedDate = repo.normalizeDate(value.date)
+    const studentIds = value.students.map((s) => s.studentId)
+    const existing = await prisma.attendance.findMany({
+      where: {
+        studentId: { in: studentIds },
+        courseId: courseId ?? null,
+        date: normalizedDate,
+      },
+      select: { studentId: true, createdAt: true },
+    })
+    const existingMap = new Map(existing.map((r) => [r.studentId, r]))
+
     const results = []
 
     for (const student of value.students) {
+      const existingRecord = existingMap.get(student.studentId)
+
+      // If already marked and caller did not explicitly request an edit, skip
+      if (existingRecord && !allowEdit) {
+        results.push({ studentId: student.studentId, skipped: true })
+        continue
+      }
+
+      // If already marked and edit is requested, enforce the 48-hour window
+      if (existingRecord && !repo.isWithinEditWindow(existingRecord.createdAt)) {
+        results.push({ studentId: student.studentId, skipped: true, reason: 'edit_window_expired' })
+        continue
+      }
+
       const record = await repo.upsertAttendance({
         studentId: student.studentId,
         courseId,
@@ -86,7 +159,14 @@ class AttendanceService {
       results.push(record)
     }
 
-    this._sendEmailsForStudents(value.students, courseId).catch(() => {})
+    const written = value.students.filter((s) => {
+      const r = results.find((res) => res.studentId === s.studentId)
+      return r && !r.skipped
+    })
+    if (written.length) {
+      this._sendEmailsForStudents(written, courseId).catch(() => {})
+      this._notifyStudentsOfAttendance(written, courseId, 'Your teacher').catch(() => {})
+    }
 
     return results
   }
@@ -118,6 +198,7 @@ class AttendanceService {
     }
 
     this._sendEmailsForStudents(value.students, value.courseId).catch(() => {})
+    this._notifyStudentsOfAttendance(value.students, value.courseId, 'Your teacher').catch(() => {})
 
     return results
   }
@@ -197,6 +278,12 @@ class AttendanceService {
       status: body.status,
       markedBy: teacherId,
     })
+
+    await this._notifyStudentsOfAttendance(
+      [{ studentId: enrollment.student.id, status: body.status }],
+      courseId,
+      'Your teacher',
+    )
 
     return record
   }

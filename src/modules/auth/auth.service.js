@@ -4,6 +4,7 @@ const repo = require("./auth.repository");
 const jwtService = require("../../core/utils/jwt.utils");
 const redis = require("../../core/cache/redis");
 const { sendPasswordResetEmail } = require("../../shared/utils/send.reset.email");
+const { sendPasswordChangedEmail } = require("../../shared/utils/send.password.changed.email");
 
 class AuthService {
   async registerAdmin({ name, email, password }) {
@@ -255,9 +256,9 @@ class AuthService {
     const normalizedEmail = email.trim().toLowerCase();
     const user = await repo.findByEmail(normalizedEmail);
 
-    // Always return success to prevent email enumeration
+    // Password resets are available only to existing teacher and admin accounts.
     if (!user || !["teacher", "admin"].includes(user.role)) {
-      return { message: "If that email exists, a reset link has been sent." };
+      throw new Error("No teacher or admin account exists with this email");
     }
 
     const otp = String(Math.floor(100000 + Math.random() * 900000));
@@ -274,7 +275,7 @@ class AuthService {
       resetToken,
     });
 
-    return { message: "If that email exists, a reset link has been sent." };
+    return { message: "A password reset link and OTP have been sent." };
   }
 
   async verifyOtp(email, otp) {
@@ -286,7 +287,9 @@ class AuthService {
     }
 
     const user = await repo.findByEmail(normalizedEmail);
-    if (!user) throw new Error("Invalid or expired OTP");
+    if (!user || !["teacher", "admin"].includes(user.role)) {
+      throw new Error("Invalid or expired OTP");
+    }
 
     // OTP verified — issue a short-lived reset token
     const resetToken = crypto.randomBytes(32).toString("hex");
@@ -296,9 +299,28 @@ class AuthService {
     return { resetToken };
   }
 
+  async verifyResetLink(resetToken) {
+    const userId = await redis.get(`reset_token:${resetToken}`);
+    if (!userId) throw new Error("Reset link is invalid or has expired");
+
+    const user = await repo.findById(userId);
+    if (!user || !["teacher", "admin"].includes(user.role)) {
+      await redis.del(`reset_token:${resetToken}`);
+      throw new Error("Reset link is invalid or has expired");
+    }
+
+    return { message: "Reset link verified" };
+  }
+
   async resetPassword(resetToken, newPassword) {
     const userId = await redis.get(`reset_token:${resetToken}`);
     if (!userId) throw new Error("Reset link is invalid or has expired");
+
+    const user = await repo.findById(userId);
+    if (!user || !["teacher", "admin"].includes(user.role)) {
+      await redis.del(`reset_token:${resetToken}`);
+      throw new Error("Reset link is invalid or has expired");
+    }
 
     if (!newPassword || newPassword.length < 6) {
       throw new Error("Password must be at least 6 characters");
@@ -310,6 +332,9 @@ class AuthService {
     // Invalidate token and any active sessions
     await redis.del(`reset_token:${resetToken}`);
     await redis.del(`refresh:${userId}`);
+
+    // Send confirmation email (non-blocking)
+    sendPasswordChangedEmail({ to: user.email, name: user.name }).catch(() => {})
 
     return { message: "Password reset successfully" };
   }
