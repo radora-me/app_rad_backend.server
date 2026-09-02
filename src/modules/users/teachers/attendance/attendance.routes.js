@@ -25,9 +25,13 @@ router.get("/my-courses", auth, role(["teacher"]), async (req, res) => {
       },
     });
     res.json(courses.map((course) => ({
+      id: course.id,
+      title: course.title,
+      description: course.description || "",
       courseId: course.id,
       className: course.title,
       section: course.description || "",
+      _count: { enrollments: course._count.enrollments },
       studentCount: course._count.enrollments,
     })));
   } catch (err) {
