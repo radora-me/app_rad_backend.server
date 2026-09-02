@@ -1,13 +1,24 @@
 const prisma = require("../../core/database/prisma");
 
 class HomeworkRepository {
-  findTeacherCourse(teacherId, courseId) {
-    return prisma.course.findFirst({
+  async isSubjectTeacher(teacherId) {
+    const count = await prisma.course.count({ where: { teacherId } });
+    return count === 0;
+  }
+
+  async findTeacherCourse(teacherId, courseId) {
+    const ownedCourse = await prisma.course.findFirst({
       where: {
         id: courseId,
         teacherId,
       },
     });
+    if (ownedCourse) return ownedCourse;
+
+    if (await this.isSubjectTeacher(teacherId)) {
+      return prisma.course.findUnique({ where: { id: courseId } });
+    }
+    return null;
   }
 
   create(data) {
@@ -36,17 +47,15 @@ class HomeworkRepository {
   }
 
   listForTeacher(teacherId) {
-    return prisma.homework.findMany({
-      where: {
-        teacherId,
-      },
+    return this.isSubjectTeacher(teacherId).then((isSubjectTeacher) => prisma.homework.findMany({
+      where: isSubjectTeacher ? {} : { teacherId },
       include: this.include(),
       orderBy: [
         {
           createdAt: "desc",
         },
       ],
-    });
+    }));
   }
 
   listForStudent(studentId) {
@@ -82,11 +91,12 @@ class HomeworkRepository {
     });
   }
 
-  findAccessibleForTeacher(teacherId, homeworkId) {
+  async findAccessibleForTeacher(teacherId, homeworkId) {
+    const isSubjectTeacher = await this.isSubjectTeacher(teacherId);
     return prisma.homework.findFirst({
       where: {
         id: homeworkId,
-        teacherId,
+        ...(isSubjectTeacher ? {} : { teacherId }),
       },
       include: this.include(),
     });
@@ -109,23 +119,25 @@ class HomeworkRepository {
     });
   }
 
-  findHomeworkWithRosterForTeacher(teacherId, homeworkId) {
+  async findHomeworkWithRosterForTeacher(teacherId, homeworkId) {
+    const isSubjectTeacher = await this.isSubjectTeacher(teacherId);
     return prisma.homework.findFirst({
       where: {
         id: homeworkId,
-        teacherId,
+        ...(isSubjectTeacher ? {} : { teacherId }),
       },
       include: this.includeWithRoster(),
     });
   }
 
-  findSubmissionForTeacher(teacherId, homeworkId, studentId) {
+  async findSubmissionForTeacher(teacherId, homeworkId, studentId) {
+    const isSubjectTeacher = await this.isSubjectTeacher(teacherId);
     return prisma.homeworkSubmission.findFirst({
       where: {
         homeworkId,
         studentId,
         homework: {
-          teacherId,
+          ...(isSubjectTeacher ? {} : { teacherId }),
         },
       },
       include: this.submissionInclude(),

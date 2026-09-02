@@ -54,6 +54,7 @@ class AuthService {
     const match = await bcrypt.compare(password, user.password);
     if (!match) throw new Error("Invalid credentials");
 
+    user.isSubjectTeacher = !(await repo.hasOwnedCourses(user.id));
     return this._issueTokens(user);
   }
 
@@ -371,6 +372,7 @@ class AuthService {
         ...(user.rollNumber && { rollNumber: user.rollNumber }),
         ...(user.className && { className: user.className }),
         ...(user.profilePhotoUrl && { profilePhotoUrl: user.profilePhotoUrl }),
+        ...(user.role === "teacher" && { isSubjectTeacher: Boolean(user.isSubjectTeacher) }),
       },
     };
   }

@@ -38,7 +38,6 @@ router.get("/admin/holidays", auth, role(["admin"]), (req, res) =>
 router.post("/admin/assign-teacher-class", auth, role(["admin"]), (req, res) =>
   controller.assignTeacherClass(req, res),
 );
-
 // Teacher — own profile
 router.get("/teacher/me", auth, role(["teacher"]), (req, res) =>
   controller.getTeacher({ ...req, params: { teacherId: req.user.id } }, res),

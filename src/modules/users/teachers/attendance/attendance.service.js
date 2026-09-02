@@ -113,6 +113,10 @@ class AttendanceService {
     const courseId = value.courseId || null
     const allowEdit = Boolean(value.allowEdit)
 
+    if (!courseId && !(await repo.hasOwnedCourses(teacherId))) {
+      throw new Error('Subject teachers cannot mark attendance')
+    }
+
     if (courseId) {
       const course = await repo.verifyTeacherCourse(courseId, teacherId)
       if (!course) throw new Error('Course not found or not assigned to you')

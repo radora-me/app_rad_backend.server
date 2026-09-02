@@ -26,6 +26,11 @@ class AuthRepository {
     });
   }
 
+  async hasOwnedCourses(teacherId) {
+    const count = await prisma.course.count({ where: { teacherId } });
+    return count > 0;
+  }
+
   async findTeacherCourseByClass(teacherId, className, section) {
     return prisma.course.findFirst({
       where: {
@@ -69,6 +74,7 @@ class AuthRepository {
       },
     });
   }
+
 
   async createHoliday({ title, date, createdBy }) {
     const normalizedDate = new Date(

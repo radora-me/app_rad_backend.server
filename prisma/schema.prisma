@@ -83,6 +83,7 @@ model User {
   deviceTokens     DeviceToken[]
 
   taughtCourses     Course[]     @relation("TeacherCourses")
+  subjectCourseAccess TeacherCourseAccess[] @relation("SubjectTeacherAccess")
   enrollments       Enrollment[] @relation("StudentEnrollments")
   attendanceRecords Attendance[] @relation("StudentAttendance")
   sentChatMessages  ClassroomMessage[] @relation("ClassroomMessageSender")
@@ -167,6 +168,8 @@ model Course {
 
   teacher User @relation("TeacherCourses", fields: [teacherId], references: [id])
 
+  subjectTeacherAccess TeacherCourseAccess[] @relation("SubjectCourseAccess")
+
   enrollments Enrollment[]
   attendance Attendance[]
   chatMessages ClassroomMessage[]
@@ -176,6 +179,20 @@ model Course {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model TeacherCourseAccess {
+  id          String   @id @default(uuid())
+  teacherId   String
+  courseId    String
+  subjectName String?
+  createdAt   DateTime @default(now())
+
+  teacher User @relation("SubjectTeacherAccess", fields: [teacherId], references: [id], onDelete: Cascade)
+  course Course @relation("SubjectCourseAccess", fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, courseId])
+  @@index([courseId])
 }
 
 model Enrollment {

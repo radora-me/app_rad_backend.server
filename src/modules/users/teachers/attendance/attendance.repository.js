@@ -78,11 +78,41 @@ class AttendanceRepository {
 
   async verifyTeacherCourse(courseId, teacherId) {
     return prisma.course.findFirst({
-      where: {
-        id: courseId,
-        teacherId,
-      },
+      where: { id: courseId, teacherId },
     });
+  }
+
+  async listTeacherCourses(teacherId) {
+    return prisma.course.findMany({
+      where: { teacherId },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        _count: { select: { enrollments: true } },
+      },
+      orderBy: [{ title: "asc" }, { description: "asc" }],
+    });
+  }
+
+  async listAvailableCourses(teacherId) {
+    const ownedCourses = await this.listTeacherCourses(teacherId);
+    if (ownedCourses.length > 0) return ownedCourses;
+
+    return prisma.course.findMany({
+      where: {},
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        _count: { select: { enrollments: true } },
+      },
+      orderBy: [{ title: "asc" }, { description: "asc" }],
+    });
+  }
+
+  async hasOwnedCourses(teacherId) {
+    return (await prisma.course.count({ where: { teacherId } })) > 0;
   }
 
   async upsertAttendance(data) {

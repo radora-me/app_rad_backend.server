@@ -6,24 +6,28 @@ const auth = require("../../../../shared/middlewares/auth.middleware");
 
 const role = require("../../../../shared/middlewares/role.middleware");
 
-const prisma = require("../../../../core/database/prisma");
+const repo = require("./attendance.repository");
 
 router.get("/my-courses", auth, role(["teacher"]), async (req, res) => {
   try {
-    const courses = await prisma.course.findMany({
-      where: { teacherId: req.user.id },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        _count: {
-          select: { enrollments: true },
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    const courses = await repo.listTeacherCourses(req.user.id);
+    res.json(courses.map((course) => ({
+      id: course.id,
+      title: course.title,
+      description: course.description || "",
+      courseId: course.id,
+      className: course.title,
+      section: course.description || "",
+      _count: { enrollments: course._count.enrollments },
+      studentCount: course._count.enrollments,
+    })));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+router.get("/available-classes", auth, role(["teacher"]), async (req, res) => {
+  try {
+    const courses = await repo.listAvailableCourses(req.user.id);
     res.json(courses.map((course) => ({
       id: course.id,
       title: course.title,

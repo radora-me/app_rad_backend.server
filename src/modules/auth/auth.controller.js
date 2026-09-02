@@ -100,6 +100,7 @@ class AuthController {
     }
   }
 
+
   async searchTeacher(req, res) {
     try {
       const { error } = teacherSearchSchema.validate(req.query);

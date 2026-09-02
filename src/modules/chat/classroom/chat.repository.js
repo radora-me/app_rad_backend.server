@@ -1,8 +1,13 @@
 const prisma = require("../../../core/database/prisma");
 
 class ClassroomChatRepository {
+  async isSubjectTeacher(teacherId) {
+    const count = await prisma.course.count({ where: { teacherId } });
+    return count === 0;
+  }
+
   async listTeacherRooms(teacherId) {
-    return prisma.course.findMany({
+    const ownedRooms = await prisma.course.findMany({
       where: { teacherId },
       include: {
         teacher: true,
@@ -13,6 +18,16 @@ class ClassroomChatRepository {
       orderBy: {
         createdAt: "desc",
       },
+    });
+    if (ownedRooms.length > 0) return ownedRooms;
+
+    return prisma.course.findMany({
+      where: {},
+      include: {
+        teacher: true,
+        _count: { select: { enrollments: true, chatMessages: true } },
+      },
+      orderBy: { createdAt: "desc" },
     });
   }
 
@@ -36,7 +51,7 @@ class ClassroomChatRepository {
   }
 
   async findTeacherCourse(courseId, teacherId) {
-    return prisma.course.findFirst({
+    const ownedCourse = await prisma.course.findFirst({
       where: {
         id: courseId,
         teacherId,
@@ -46,6 +61,17 @@ class ClassroomChatRepository {
         _count: {
           select: { enrollments: true, chatMessages: true },
         },
+      },
+    });
+    if (ownedCourse) return ownedCourse;
+
+    if (!(await this.isSubjectTeacher(teacherId))) return null;
+
+    return prisma.course.findFirst({
+      where: { id: courseId },
+      include: {
+        teacher: true,
+        _count: { select: { enrollments: true, chatMessages: true } },
       },
     });
   }
