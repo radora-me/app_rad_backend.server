@@ -6,6 +6,30 @@ const {
 } = require("./helpers/attendanceAnalytics");
 
 class AttendanceService {
+  _toAttendancePayload(record) {
+    return {
+      date: record.date,
+      status: record.status,
+      mode: record.mode,
+      course: record.course
+        ? {
+            courseId: record.course.id,
+            className: record.course.title,
+            section: record.course.description || "",
+          }
+        : null,
+    };
+  }
+
+  _toLeavePayload(leave) {
+    return {
+      fromDate: leave.fromDate,
+      toDate: leave.toDate,
+      reason: leave.reason,
+      status: leave.status,
+    };
+  }
+
   async overview(studentId) {
     const records = await repo.getStudentAttendance(studentId);
     const holidays = await repo.getHolidays();
@@ -29,9 +53,8 @@ class AttendanceService {
 
       leaveClasses: summary.leaveClasses,
 
-      records: summary.records,
+      records: summary.records.map((record) => this._toAttendancePayload(record)),
       holidays: holidays.map((holiday) => ({
-        id: holiday.id,
         title: holiday.title,
         date: holiday.date,
       })),
@@ -39,7 +62,7 @@ class AttendanceService {
   }
 
   async applyLeave(studentId, data) {
-    return repo.createLeave({
+    const leave = await repo.createLeave({
       studentId,
 
       fromDate: new Date(data.fromDate),
@@ -48,10 +71,12 @@ class AttendanceService {
 
       reason: data.reason,
     });
+    return this._toLeavePayload(leave);
   }
 
   async leaveHistory(studentId) {
-    return repo.getLeaveHistory(studentId);
+    const leaves = await repo.getLeaveHistory(studentId);
+    return leaves.map((leave) => this._toLeavePayload(leave));
   }
 }
 

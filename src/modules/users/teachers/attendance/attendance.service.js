@@ -116,6 +116,12 @@ class AttendanceService {
     if (courseId) {
       const course = await repo.verifyTeacherCourse(courseId, teacherId)
       if (!course) throw new Error('Course not found or not assigned to you')
+
+      const enrolledStudents = await repo.getCourseStudents(courseId)
+      const enrolledStudentIds = new Set(enrolledStudents.map((enrollment) => enrollment.student.id))
+      if (value.students.some((student) => !enrolledStudentIds.has(student.studentId))) {
+        throw new Error('One or more students are not enrolled in this class')
+      }
     }
 
     // Pre-fetch existing records for today so we can honour allowEdit
@@ -168,7 +174,7 @@ class AttendanceService {
       this._notifyStudentsOfAttendance(written, courseId, 'Your teacher').catch(() => {})
     }
 
-    return results
+    return results.map((record) => record.skipped ? record : this._attendanceResponse(record))
   }
 
   async markSubjectWiseAttendance(teacherId, body) {
@@ -179,6 +185,12 @@ class AttendanceService {
 
     const course = await repo.verifyTeacherCourse(value.courseId, teacherId)
     if (!course) throw new Error('Course not found or not assigned to you')
+
+    const enrolledStudents = await repo.getCourseStudents(value.courseId)
+    const enrolledStudentIds = new Set(enrolledStudents.map((enrollment) => enrollment.student.id))
+    if (value.students.some((student) => !enrolledStudentIds.has(student.studentId))) {
+      throw new Error('One or more students are not enrolled in this class')
+    }
 
     const holiday = await repo.getHolidayByDate(value.date)
     if (holiday) throw new Error(`Cannot mark attendance on a holiday: ${holiday.title}`)
@@ -200,10 +212,23 @@ class AttendanceService {
     this._sendEmailsForStudents(value.students, value.courseId).catch(() => {})
     this._notifyStudentsOfAttendance(value.students, value.courseId, 'Your teacher').catch(() => {})
 
-    return results
+    return results.map((record) => record.skipped ? record : this._attendanceResponse(record))
   }
 
-  async getCourseStudents(courseId) {
+  _attendanceResponse(record) {
+    return {
+      studentId: record.studentId,
+      courseId: record.courseId,
+      date: record.date,
+      mode: record.mode,
+      status: record.status,
+    }
+  }
+
+  async getCourseStudents(teacherId, courseId) {
+    const course = await repo.verifyTeacherCourse(courseId, teacherId)
+    if (!course) throw new Error('Course not found or not assigned to you')
+
     const enrollments = await repo.getCourseStudents(courseId)
 
     return enrollments.map((enrollment) => ({
@@ -216,7 +241,10 @@ class AttendanceService {
     }))
   }
 
-  async getCourseAttendance(courseId, date) {
+  async getCourseAttendance(teacherId, courseId, date) {
+    const course = await repo.verifyTeacherCourse(courseId, teacherId)
+    if (!course) throw new Error('Course not found or not assigned to you')
+
     const enrollments = await repo.getCourseStudents(courseId)
 
     if (enrollments.length === 0) return []
@@ -240,10 +268,17 @@ class AttendanceService {
   }
 
   async getHolidays() {
-    return repo.listHolidays()
+    const holidays = await repo.listHolidays()
+    return holidays.map((holiday) => ({
+      title: holiday.title,
+      date: holiday.date,
+    }))
   }
 
-  async getStudentAttendance(courseId, rollNumber, date) {
+  async getStudentAttendance(teacherId, courseId, rollNumber, date) {
+    const course = await repo.verifyTeacherCourse(courseId, teacherId)
+    if (!course) throw new Error('Course not found or not assigned to you')
+
     const enrollment = await repo.getCourseStudentByRollNumber(courseId, rollNumber)
     if (!enrollment) throw new Error('Student not found in this class')
 
@@ -262,6 +297,9 @@ class AttendanceService {
   }
 
   async updateStudentAttendance(teacherId, courseId, rollNumber, body) {
+    const course = await repo.verifyTeacherCourse(courseId, teacherId)
+    if (!course) throw new Error('Course not found or not assigned to you')
+
     const enrollment = await repo.getCourseStudentByRollNumber(courseId, rollNumber)
     if (!enrollment) throw new Error('Student not found in this class')
 
@@ -285,7 +323,7 @@ class AttendanceService {
       'Your teacher',
     )
 
-    return record
+    return this._attendanceResponse(record)
   }
 }
 

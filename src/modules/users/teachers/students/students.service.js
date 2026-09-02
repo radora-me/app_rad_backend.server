@@ -11,19 +11,30 @@ class TeacherStudentsService {
       className: user.className || user.class || "",
       profilePhotoUrl: user.profilePhotoUrl || null,
       courses: (user.enrollments || []).map((enrollment) => ({
-        id: enrollment.course.id,
-        title: enrollment.course.title,
-        description: enrollment.course.description,
+        courseId: enrollment.course.id,
+        className: enrollment.course.title,
+        section: enrollment.course.description || "",
       })),
-      existingTeacherIds: [
-        ...new Set((user.enrollments || []).map((e) => e.course.teacherId)),
-      ],
-      studentProfile: user.studentProfile || null,
+      studentProfile: this._toProfilePayload(user.studentProfile),
     };
   }
 
-  async findByRollNumber(teacherId, rollNumber) {
-    const student = await repo.findStudentByRollNumber(rollNumber);
+  _toProfilePayload(profile) {
+    if (!profile) return null;
+    const {
+      address, city, state, pincode, parentName, parentEmail,
+      parentPhone, parentRelation, dateOfBirth, bloodGroup, emergencyPhone,
+    } = profile;
+    return {
+      address, city, state, pincode, parentName, parentEmail,
+      parentPhone, parentRelation, dateOfBirth, bloodGroup, emergencyPhone,
+    };
+  }
+
+  async findByRollNumber(teacherId, rollNumber, role) {
+    const student = role === "admin"
+      ? await repo.findStudentByRollNumber(rollNumber)
+      : await repo.findStudentByRollNumberForTeacher(teacherId, rollNumber);
     if (!student || student.role !== "student") throw new Error("Student not found");
     return this._toStudentPayload(student);
   }
@@ -34,9 +45,9 @@ class TeacherStudentsService {
       const teacherCourses = student.enrollments
         .filter((enrollment) => enrollment.course.teacherId === teacherId)
         .map((enrollment) => ({
-          id: enrollment.course.id,
-          title: enrollment.course.title,
-          description: enrollment.course.description,
+          courseId: enrollment.course.id,
+          className: enrollment.course.title,
+          section: enrollment.course.description || "",
         }));
       return {
         id: student.id,
@@ -45,8 +56,7 @@ class TeacherStudentsService {
         className: student.className || student.class || "",
         profilePhotoUrl: student.profilePhotoUrl || null,
         courses: teacherCourses,
-        addedAt: student.createdAt,
-        studentProfile: student.studentProfile || null,
+        studentProfile: this._toProfilePayload(student.studentProfile),
       };
     });
   }
@@ -62,15 +72,19 @@ class TeacherStudentsService {
     return this._toStudentPayload(updated);
   }
 
-  async updateStudentProfile(rollNumber, data) {
-    const student = await repo.findStudentByRollNumber(rollNumber);
+  async updateStudentProfile(teacherId, rollNumber, data, role) {
+    const student = role === "admin"
+      ? await repo.findStudentByRollNumber(rollNumber)
+      : await repo.findStudentByRollNumberForTeacher(teacherId, rollNumber);
     if (!student || student.role !== "student") throw new Error("Student not found");
     const updated = await repo.upsertStudentProfile(student.id, data);
-    return updated;
+    return this._toProfilePayload(updated);
   }
 
-  async getFullProfile(rollNumber) {
-    const student = await repo.findStudentByRollNumber(rollNumber);
+  async getFullProfile(teacherId, rollNumber, role) {
+    const student = role === "admin"
+      ? await repo.findStudentByRollNumber(rollNumber)
+      : await repo.findStudentByRollNumberForTeacher(teacherId, rollNumber);
     if (!student || student.role !== "student") throw new Error("Student not found");
     return this._toStudentPayload(student);
   }

@@ -1,8 +1,23 @@
 const prisma = require("../../core/database/prisma");
 
 const include = {
-  entries: { include: { teacher: { select: { id: true, name: true } }, course: { select: { id: true, title: true, description: true } } }, orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] },
-  assignments: { include: { course: { include: { teacher: { select: { id: true, name: true, email: true } } } } } },
+  entries: {
+    include: {
+      teacher: { select: { id: true, name: true } },
+      course: { select: { id: true, title: true, description: true } },
+    },
+    orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+  },
+  assignments: {
+    include: {
+      course: {
+        include: {
+          teacher: { select: { id: true, name: true } },
+          enrollments: { select: { studentId: true } },
+        },
+      },
+    },
+  },
 };
 
 class TimetableRepository {

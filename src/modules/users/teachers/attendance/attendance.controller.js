@@ -30,7 +30,7 @@ class AttendanceController {
 
   async students(req, res) {
     try {
-      const result = await service.getCourseStudents(req.params.courseId);
+      const result = await service.getCourseStudents(req.user.id, req.params.courseId);
 
       res.json(result);
     } catch (err) {
@@ -43,6 +43,7 @@ class AttendanceController {
   async courseAttendance(req, res) {
     try {
       const result = await service.getCourseAttendance(
+        req.user.id,
         req.params.courseId,
         req.query.date || new Date().toISOString(),
       );
@@ -67,6 +68,7 @@ class AttendanceController {
   async studentAttendance(req, res) {
     try {
       const result = await service.getStudentAttendance(
+        req.user.id,
         req.params.courseId,
         req.params.rollNumber,
         req.query.date || new Date().toISOString(),

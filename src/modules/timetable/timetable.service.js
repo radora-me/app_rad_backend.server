@@ -1,6 +1,39 @@
 const repo = require("./timetable.repository");
 
 class TimetableService {
+  _toMinePayload(timetable, user) {
+    const relevantAssignments = timetable.assignments.filter((assignment) =>
+      user.role === "teacher"
+        ? assignment.course.teacherId === user.id
+        : assignment.course.enrollments?.some((enrollment) => enrollment.studentId === user.id),
+    );
+    const relevantCourseIds = new Set(relevantAssignments.map((assignment) => assignment.courseId));
+
+    return {
+      name: timetable.name,
+      className: timetable.className,
+      section: timetable.section || "",
+      isPublished: timetable.isPublished,
+      entries: timetable.entries
+        .filter((entry) => !entry.courseId || relevantCourseIds.has(entry.courseId))
+        .map((entry) => ({
+          dayOfWeek: entry.dayOfWeek,
+          startTime: entry.startTime,
+          endTime: entry.endTime,
+          subject: entry.subject,
+          room: entry.room,
+          teacherName: entry.teacher?.name || null,
+          courseId: entry.courseId || null,
+        })),
+      courses: relevantAssignments.map((assignment) => ({
+        courseId: assignment.courseId,
+        className: assignment.course.title,
+        section: assignment.course.description || "",
+        teacherName: assignment.course.teacher?.name || null,
+      })),
+    };
+  }
+
   async create(payload, adminId) {
     const courseIds = [...new Set(payload.courseIds)];
     const courses = await repo.findCourses(courseIds);
@@ -29,10 +62,15 @@ class TimetableService {
     await repo.replaceAssignments(id, uniqueIds);
     return repo.findById(id);
   }
-  listMine(user) {
-    if (user.role === "student") return repo.listForStudent(user.id);
-    if (user.role === "teacher") return repo.listForTeacher(user.id);
-    throw new Error("Timetables are only available to students and teachers");
+  async listMine(user) {
+    let timetables;
+    if (user.role === "student") timetables = await repo.listForStudent(user.id);
+    else if (user.role === "teacher") timetables = await repo.listForTeacher(user.id);
+    else throw new Error("Timetables are only available to students and teachers");
+
+    return timetables
+      .map((timetable) => this._toMinePayload(timetable, user))
+      .filter((timetable) => timetable.courses.length > 0);
   }
 }
 module.exports = new TimetableService();

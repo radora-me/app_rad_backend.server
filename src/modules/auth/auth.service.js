@@ -7,6 +7,15 @@ const { sendPasswordResetEmail } = require("../../shared/utils/send.reset.email"
 const { sendPasswordChangedEmail } = require("../../shared/utils/send.password.changed.email");
 
 class AuthService {
+  _toCoursePayload(course) {
+    return {
+      courseId: course.id,
+      className: course.title,
+      section: course.description || "",
+      studentCount: course._count?.enrollments || 0,
+    };
+  }
+
   async registerAdmin({ name, email, password }) {
     const normalizedEmail = email.trim().toLowerCase();
     const existing = await repo.findByEmail(normalizedEmail);
@@ -114,8 +123,8 @@ class AuthService {
         name: teacher.name,
         email: teacher.email,
       },
-      course,
-      courses,
+      course: this._toCoursePayload(course),
+      courses: courses.map((item) => this._toCoursePayload(item)),
     };
   }
 
@@ -132,7 +141,7 @@ class AuthService {
       id: teacher.id,
       name: teacher.name,
       email: teacher.email,
-      courses,
+      courses: courses.map((course) => this._toCoursePayload(course)),
     };
   }
 
@@ -160,15 +169,20 @@ class AuthService {
       throw new Error("Invalid date");
     }
 
-    return repo.createHoliday({
+    const holiday = await repo.createHoliday({
       title: title.trim(),
       date: holidayDate,
       createdBy: adminId,
     });
+    return { title: holiday.title, date: holiday.date };
   }
 
   async listHolidays() {
-    return repo.listHolidays();
+    const holidays = await repo.listHolidays();
+    return holidays.map((holiday) => ({
+      title: holiday.title,
+      date: holiday.date,
+    }));
   }
 
   async listTeachers() {

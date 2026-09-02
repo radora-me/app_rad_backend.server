@@ -33,6 +33,20 @@ class TeacherStudentsRepository {
     });
   }
 
+  async findStudentByRollNumberForTeacher(teacherId, rollNumber) {
+    return prisma.user.findFirst({
+      where: {
+        rollNumber,
+        role: "student",
+        enrollments: { some: { course: { teacherId } } },
+      },
+      include: {
+        enrollments: { include: { course: true } },
+        studentProfile: true,
+      },
+    });
+  }
+
   async findStudentsByTeacher(teacherId) {
     return prisma.user.findMany({
       where: {

@@ -15,7 +15,6 @@ class NotificationsController {
 
       return res.json({
         message: "Device token registered",
-        token: result,
       });
     } catch (error) {
       return res.status(400).json({ error: error.message || "Could not register device token" });

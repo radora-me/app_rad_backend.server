@@ -12,7 +12,10 @@ router.get("/my-courses", auth, role(["teacher"]), async (req, res) => {
   try {
     const courses = await prisma.course.findMany({
       where: { teacherId: req.user.id },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        description: true,
         _count: {
           select: { enrollments: true },
         },
@@ -21,7 +24,12 @@ router.get("/my-courses", auth, role(["teacher"]), async (req, res) => {
         createdAt: "desc",
       },
     });
-    res.json(courses);
+    res.json(courses.map((course) => ({
+      courseId: course.id,
+      className: course.title,
+      section: course.description || "",
+      studentCount: course._count.enrollments,
+    })));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

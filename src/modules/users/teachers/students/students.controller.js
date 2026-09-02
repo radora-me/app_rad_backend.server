@@ -34,6 +34,7 @@ class TeacherStudentsController {
       const result = await service.findByRollNumber(
         req.user.id,
         req.params.rollNumber,
+        req.user.role,
       );
       res.json(result);
     } catch (err) {
@@ -67,8 +68,10 @@ class TeacherStudentsController {
       if (error) return res.status(400).json({ error: error.message });
 
       const result = await service.updateStudentProfile(
+        req.user.id,
         req.params.rollNumber,
         value,
+        req.user.role,
       );
       res.json(result);
     } catch (err) {
@@ -79,7 +82,11 @@ class TeacherStudentsController {
 
   async getFullProfile(req, res) {
     try {
-      const result = await service.getFullProfile(req.params.rollNumber);
+      const result = await service.getFullProfile(
+        req.user.id,
+        req.params.rollNumber,
+        req.user.role,
+      );
       res.json(result);
     } catch (err) {
       const status = err.message === "Student not found" ? 404 : 400;
