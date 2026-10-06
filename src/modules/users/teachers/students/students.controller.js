@@ -22,7 +22,7 @@ const profileSchema = Joi.object({
 class TeacherStudentsController {
   async list(req, res) {
     try {
-      const result = await service.list(req.user.id);
+      const result = await service.list(req.user.id, req.user.role);
       res.json(result);
     } catch (err) {
       res.status(400).json({ error: err.message });

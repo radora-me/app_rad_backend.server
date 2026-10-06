@@ -39,11 +39,13 @@ class TeacherStudentsService {
     return this._toStudentPayload(student);
   }
 
-  async list(teacherId) {
-    const students = await repo.findStudentsByTeacher(teacherId);
+  async list(teacherId, role) {
+    const students = role === "admin"
+      ? await repo.findAllStudents()
+      : await repo.findStudentsByTeacher(teacherId);
     return students.map((student) => {
       const teacherCourses = student.enrollments
-        .filter((enrollment) => enrollment.course.teacherId === teacherId)
+        .filter((enrollment) => role === "admin" || enrollment.course.teacherId === teacherId)
         .map((enrollment) => ({
           courseId: enrollment.course.id,
           className: enrollment.course.title,

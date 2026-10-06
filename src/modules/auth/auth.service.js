@@ -288,19 +288,18 @@ class AuthService {
   async forgotPassword(identifier) {
     const normalizedIdentifier = identifier.trim().toLowerCase();
     const user = await repo.findByIdentifier(normalizedIdentifier);
-    const genericResponse = {
-      message: "If the account exists and has a recovery address, a verification code will be sent.",
-    };
 
     if (!user || !["student", "teacher", "admin"].includes(user.role)) {
-      return genericResponse;
+      throw new Error("No account found for the provided email or roll number");
     }
 
     const recipient = user.role === "student"
       ? user.studentProfile?.parentEmail
       : user.email;
 
-    if (!recipient) return genericResponse;
+    if (!recipient) {
+      throw new Error("No recovery email is configured for this account");
+    }
 
     const otp = String(Math.floor(100000 + Math.random() * 900000));
     const resetToken = crypto.randomBytes(32).toString("hex");
@@ -316,7 +315,7 @@ class AuthService {
       resetToken,
     });
 
-    return genericResponse;
+    return { message: "A verification code has been sent to the registered recovery address." };
   }
 
   async verifyOtp(identifier, otp) {

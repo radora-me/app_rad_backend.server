@@ -193,7 +193,13 @@ class AuthController {
       const result = await service.forgotPassword(req.body.identifier);
       res.json(result);
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      const status = [
+        "No account found for the provided email or roll number",
+        "No recovery email is configured for this account",
+      ].includes(err.message)
+        ? 404
+        : 400;
+      res.status(status).json({ error: err.message });
     }
   }
 

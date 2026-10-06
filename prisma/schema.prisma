@@ -44,6 +44,69 @@ enum SubmissionStatus {
   GRADED
 }
 
+enum FinanceAccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+enum FinanceEntryStatus {
+  DRAFT
+  POSTED
+  VOID
+}
+
+enum FinanceInvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum FinancePaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CARD
+  UPI
+  CHEQUE
+  OTHER
+}
+
+enum FinancePaymentStatus {
+  PENDING
+  COMPLETED
+  REFUNDED
+}
+
+enum FinanceExpenseStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  PAID
+}
+
+enum FinanceApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum FinanceBudgetStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
+enum FinanceAssetStatus {
+  ACTIVE
+  DISPOSED
+}
+
 model StudentProfile {
   id     String @id @default(uuid())
   userId String @unique
@@ -90,6 +153,14 @@ model User {
   sentChatMessages    ClassroomMessage[]    @relation("ClassroomMessageSender")
   createdHomework     Homework[]            @relation("HomeworkTeacher")
   createdNotices      Notice[]              @relation("NoticeCreator")
+
+  financeStudentAssignments FinanceStudentFeeAssignment[] @relation("FinanceStudent")
+  financeCreatedInvoices    FeeInvoice[]                  @relation("FinanceInvoiceCreatedBy")
+  financeInvoiceStudent     FeeInvoice[]                  @relation("FinanceInvoiceStudent")
+  financeReceivedPayments   FinancePayment[]              @relation("FinancePaymentReceivedBy")
+  financeCreatedJournals    FinanceJournalEntry[]         @relation("FinanceJournalCreatedBy")
+  financeCreatedExpenses    FinanceExpenseBill[]          @relation("FinanceExpenseCreatedBy")
+  financeApprovals          FinanceExpenseApproval[]      @relation("FinanceApprovalBy")
 
   homeworkSubmissions HomeworkSubmission[] @relation("HomeworkStudent")
   leaves              Leave[]
@@ -483,4 +554,326 @@ model TimetableAssignment {
 
   @@unique([timetableId, courseId])
   @@index([courseId])
+}
+
+model FinanceFeeCategory {
+  id          String         @id @default(uuid())
+  name        String
+  code        String         @unique
+  description String?
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  structures  FeeStructure[]
+}
+
+model FeeStructure {
+  id           String                        @id @default(uuid())
+  name         String
+  academicYear String
+  className    String?
+  amount       Decimal                       @db.Decimal(14, 2)
+  frequency    String                        @default("ANNUAL")
+  categoryId   String
+  category     FinanceFeeCategory            @relation(fields: [categoryId], references: [id])
+  isActive     Boolean                       @default(true)
+  createdAt    DateTime                      @default(now())
+  updatedAt    DateTime                      @updatedAt
+  assignments  FinanceStudentFeeAssignment[]
+
+  @@index([academicYear, className])
+}
+
+model FinanceStudentFeeAssignment {
+  id                String       @id @default(uuid())
+  studentId         String
+  feeStructureId    String
+  assignedAmount    Decimal      @db.Decimal(14, 2)
+  discountAmount    Decimal      @default(0) @db.Decimal(14, 2)
+  scholarshipAmount Decimal      @default(0) @db.Decimal(14, 2)
+  assignedAt        DateTime     @default(now())
+  student           User         @relation("FinanceStudent", fields: [studentId], references: [id])
+  feeStructure      FeeStructure @relation(fields: [feeStructureId], references: [id])
+  invoices          FeeInvoice[]
+
+  @@unique([studentId, feeStructureId])
+  @@index([studentId])
+}
+
+model FeeInvoice {
+  id            String                       @id @default(uuid())
+  invoiceNumber String                       @unique
+  assignmentId  String?
+  studentId     String?
+  issueDate     DateTime                     @default(now())
+  dueDate       DateTime
+  subtotal      Decimal                      @db.Decimal(14, 2)
+  discount      Decimal                      @default(0) @db.Decimal(14, 2)
+  lateFee       Decimal                      @default(0) @db.Decimal(14, 2)
+  total         Decimal                      @db.Decimal(14, 2)
+  paidAmount    Decimal                      @default(0) @db.Decimal(14, 2)
+  status        FinanceInvoiceStatus         @default(DRAFT)
+  notes         String?
+  assignment    FinanceStudentFeeAssignment? @relation(fields: [assignmentId], references: [id])
+  student       User?                        @relation("FinanceInvoiceStudent", fields: [studentId], references: [id])
+  createdById   String
+  createdBy     User                         @relation("FinanceInvoiceCreatedBy", fields: [createdById], references: [id])
+  installments  FinanceInstallment[]
+  payments      FinancePayment[]
+  refunds       FinanceRefund[]
+  receipts      FinanceReceipt[]
+  createdAt     DateTime                     @default(now())
+  updatedAt     DateTime                     @updatedAt
+
+  @@index([studentId, status])
+  @@index([dueDate, status])
+}
+
+model FinanceInstallment {
+  id         String     @id @default(uuid())
+  invoiceId  String
+  name       String
+  dueDate    DateTime
+  amount     Decimal    @db.Decimal(14, 2)
+  paidAmount Decimal    @default(0) @db.Decimal(14, 2)
+  invoice    FeeInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  createdAt  DateTime   @default(now())
+
+  @@index([dueDate])
+}
+
+model FinanceDiscount {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  percentage  Decimal? @db.Decimal(5, 2)
+  fixedAmount Decimal? @db.Decimal(14, 2)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model FinanceScholarship {
+  id           String   @id @default(uuid())
+  name         String
+  code         String   @unique
+  sponsor      String?
+  amount       Decimal  @db.Decimal(14, 2)
+  academicYear String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model FinancePayment {
+  id           String               @id @default(uuid())
+  reference    String               @unique
+  invoiceId    String?
+  amount       Decimal              @db.Decimal(14, 2)
+  method       FinancePaymentMethod
+  status       FinancePaymentStatus @default(COMPLETED)
+  paidAt       DateTime             @default(now())
+  notes        String?
+  invoice      FeeInvoice?          @relation(fields: [invoiceId], references: [id])
+  receivedById String
+  receivedBy   User                 @relation("FinancePaymentReceivedBy", fields: [receivedById], references: [id])
+  receipts     FinanceReceipt[]
+  createdAt    DateTime             @default(now())
+
+  @@index([paidAt, status])
+}
+
+model FinanceRefund {
+  id         String     @id @default(uuid())
+  invoiceId  String
+  amount     Decimal    @db.Decimal(14, 2)
+  reason     String
+  refundedAt DateTime   @default(now())
+  invoice    FeeInvoice @relation(fields: [invoiceId], references: [id])
+  createdAt  DateTime   @default(now())
+}
+
+model FinanceReceipt {
+  id            String          @id @default(uuid())
+  receiptNumber String          @unique
+  invoiceId     String
+  paymentId     String?         @unique
+  issuedAt      DateTime        @default(now())
+  invoice       FeeInvoice      @relation(fields: [invoiceId], references: [id])
+  payment       FinancePayment? @relation(fields: [paymentId], references: [id])
+}
+
+model FinanceAccount {
+  id        String               @id @default(uuid())
+  code      String               @unique
+  name      String
+  type      FinanceAccountType
+  parentId  String?
+  isSystem  Boolean              @default(false)
+  isActive  Boolean              @default(true)
+  parent    FinanceAccount?      @relation("FinanceAccountTree", fields: [parentId], references: [id])
+  children  FinanceAccount[]     @relation("FinanceAccountTree")
+  lines     FinanceJournalLine[]
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+}
+
+model FinanceJournalEntry {
+  id          String               @id @default(uuid())
+  entryNumber String               @unique
+  entryDate   DateTime             @default(now())
+  description String
+  source      String?
+  status      FinanceEntryStatus   @default(DRAFT)
+  totalDebit  Decimal              @default(0) @db.Decimal(14, 2)
+  totalCredit Decimal              @default(0) @db.Decimal(14, 2)
+  createdById String
+  createdBy   User                 @relation("FinanceJournalCreatedBy", fields: [createdById], references: [id])
+  lines       FinanceJournalLine[]
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([entryDate, status])
+}
+
+model FinanceJournalLine {
+  id        String              @id @default(uuid())
+  entryId   String
+  accountId String
+  debit     Decimal             @default(0) @db.Decimal(14, 2)
+  credit    Decimal             @default(0) @db.Decimal(14, 2)
+  memo      String?
+  entry     FinanceJournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  account   FinanceAccount      @relation(fields: [accountId], references: [id])
+  createdAt DateTime            @default(now())
+
+  @@index([accountId])
+}
+
+model FinanceExpenseCategory {
+  id        String               @id @default(uuid())
+  name      String
+  code      String               @unique
+  isActive  Boolean              @default(true)
+  bills     FinanceExpenseBill[]
+  createdAt DateTime             @default(now())
+}
+
+model FinanceVendor {
+  id                String                    @id @default(uuid())
+  name              String
+  email             String?
+  phone             String?
+  taxId             String?
+  address           String?
+  bills             FinanceExpenseBill[]
+  recurringExpenses FinanceRecurringExpense[]
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+}
+
+model FinanceExpenseBill {
+  id          String                   @id @default(uuid())
+  billNumber  String                   @unique
+  vendorId    String?
+  categoryId  String?
+  billDate    DateTime                 @default(now())
+  dueDate     DateTime?
+  amount      Decimal                  @db.Decimal(14, 2)
+  status      FinanceExpenseStatus     @default(DRAFT)
+  description String?
+  vendor      FinanceVendor?           @relation(fields: [vendorId], references: [id])
+  category    FinanceExpenseCategory?  @relation(fields: [categoryId], references: [id])
+  createdById String
+  createdBy   User                     @relation("FinanceExpenseCreatedBy", fields: [createdById], references: [id])
+  approvals   FinanceExpenseApproval[]
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+
+  @@index([billDate, status])
+}
+
+model FinanceExpenseApproval {
+  id         String                @id @default(uuid())
+  billId     String
+  approverId String
+  status     FinanceApprovalStatus @default(PENDING)
+  comment    String?
+  decidedAt  DateTime?
+  bill       FinanceExpenseBill    @relation(fields: [billId], references: [id], onDelete: Cascade)
+  approver   User                  @relation("FinanceApprovalBy", fields: [approverId], references: [id])
+  createdAt  DateTime              @default(now())
+}
+
+model FinanceRecurringExpense {
+  id        String         @id @default(uuid())
+  name      String
+  vendorId  String?
+  amount    Decimal        @db.Decimal(14, 2)
+  frequency String
+  nextRunAt DateTime
+  isActive  Boolean        @default(true)
+  vendor    FinanceVendor? @relation(fields: [vendorId], references: [id])
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+}
+
+model FinanceIncome {
+  id         String   @id @default(uuid())
+  source     String
+  amount     Decimal  @db.Decimal(14, 2)
+  receivedAt DateTime @default(now())
+  reference  String?
+  notes      String?
+  createdAt  DateTime @default(now())
+}
+
+model FinanceAsset {
+  id            String             @id @default(uuid())
+  name          String
+  assetCode     String             @unique
+  category      String
+  purchaseDate  DateTime?
+  purchaseValue Decimal            @db.Decimal(14, 2)
+  currentValue  Decimal            @db.Decimal(14, 2)
+  status        FinanceAssetStatus @default(ACTIVE)
+  location      String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+}
+
+model FinanceBudget {
+  id         String              @id @default(uuid())
+  name       String
+  fiscalYear String
+  category   String
+  allocated  Decimal             @db.Decimal(14, 2)
+  consumed   Decimal             @default(0) @db.Decimal(14, 2)
+  status     FinanceBudgetStatus @default(DRAFT)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  @@unique([fiscalYear, category])
+}
+
+model FinanceBankAccount {
+  id             String   @id @default(uuid())
+  name           String
+  bankName       String
+  accountLast4   String?
+  openingBalance Decimal  @default(0) @db.Decimal(14, 2)
+  currentBalance Decimal  @default(0) @db.Decimal(14, 2)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model FinancePayrollIntegration {
+  id           String   @id @default(uuid())
+  payrollRunId String   @unique
+  period       String
+  amount       Decimal  @db.Decimal(14, 2)
+  syncedAt     DateTime @default(now())
+  status       String   @default("SYNCED")
+  createdAt    DateTime @default(now())
 }

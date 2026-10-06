@@ -61,6 +61,17 @@ class TeacherStudentsRepository {
     });
   }
 
+  async findAllStudents() {
+    return prisma.user.findMany({
+      where: { role: "student" },
+      include: {
+        enrollments: { include: { course: true } },
+        studentProfile: true,
+      },
+      orderBy: { name: "asc" },
+    });
+  }
+
   async findTeacherCourses(teacherId, courseIds) {
     return prisma.course.findMany({
       where: {
