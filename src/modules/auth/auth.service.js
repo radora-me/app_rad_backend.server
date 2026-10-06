@@ -64,6 +64,22 @@ class AuthService {
     return this._issueTokens(user);
   }
 
+  async getCurrentUser(userId) {
+    const user = await repo.findById(userId);
+    if (!user || !["student", "teacher", "admin"].includes(user.role)) {
+      throw new Error("User not found");
+    }
+
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email || null,
+      rollNumber: user.rollNumber || null,
+      role: user.role,
+      profilePhotoUrl: user.profilePhotoUrl || null,
+    };
+  }
+
   async teacherLogin({ email, password }) {
     const user = await repo.findByEmail(email);
     if (!user || !["teacher", "admin"].includes(user.role))

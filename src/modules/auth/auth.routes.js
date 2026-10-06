@@ -16,6 +16,7 @@ router.post("/reset-password", (req, res) => controller.resetPassword(req, res))
 
 // Authenticated
 router.post("/logout", auth, (req, res) => controller.logout(req, res));
+router.get("/me", auth, (req, res) => controller.getCurrentUser(req, res));
 
 // Admin only
 router.post("/admin/create-student", auth, role(["admin"]), (req, res) =>

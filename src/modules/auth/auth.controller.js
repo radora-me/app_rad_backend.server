@@ -186,6 +186,15 @@ class AuthController {
     }
   }
 
+  async getCurrentUser(req, res) {
+    try {
+      const result = await service.getCurrentUser(req.user.id);
+      return res.json(result);
+    } catch (err) {
+      return res.status(err.message === "User not found" ? 404 : 400).json({ error: err.message });
+    }
+  }
+
   async forgotPassword(req, res) {
     try {
       const { error } = forgotPasswordSchema.validate(req.body);
