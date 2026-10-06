@@ -1,6 +1,7 @@
 const service = require("./auth.service");
 const {
   registerSchema,
+  loginSchema,
   studentLoginSchema,
   teacherLoginSchema,
   createStudentSchema,
@@ -47,6 +48,18 @@ class AuthController {
       res.json(result);
     } catch (err) {
       res.status(401).json({ error: err.message });
+    }
+  }
+
+  async login(req, res) {
+    try {
+      const { error } = loginSchema.validate(req.body);
+      if (error) return res.status(400).json({ error: "Invalid login request" });
+
+      const result = await service.login(req.body);
+      res.json(result);
+    } catch (err) {
+      res.status(401).json({ error: "Invalid credentials" });
     }
   }
 
@@ -177,7 +190,7 @@ class AuthController {
     try {
       const { error } = forgotPasswordSchema.validate(req.body);
       if (error) return res.status(400).json({ error: error.message });
-      const result = await service.forgotPassword(req.body.email);
+      const result = await service.forgotPassword(req.body.identifier);
       res.json(result);
     } catch (err) {
       res.status(400).json({ error: err.message });
@@ -188,7 +201,7 @@ class AuthController {
     try {
       const { error } = verifyOtpSchema.validate(req.body);
       if (error) return res.status(400).json({ error: error.message });
-      const result = await service.verifyOtp(req.body.email, req.body.otp);
+      const result = await service.verifyOtp(req.body.identifier, req.body.otp);
       res.json(result);
     } catch (err) {
       res.status(400).json({ error: err.message });

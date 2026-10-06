@@ -45,58 +45,59 @@ enum SubmissionStatus {
 }
 
 model StudentProfile {
-  id              String   @id @default(uuid())
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  address         String?
-  city            String?
-  state           String?
-  pincode         String?
+  address String?
+  city    String?
+  state   String?
+  pincode String?
 
-  parentName      String?
-  parentEmail     String?
-  parentPhone     String?
-  parentRelation  String?
+  parentName     String?
+  parentEmail    String?
+  parentPhone    String?
+  parentRelation String?
 
-  dateOfBirth     DateTime?
-  bloodGroup      String?
-  emergencyPhone  String?
+  dateOfBirth    DateTime?
+  bloodGroup     String?
+  emergencyPhone String?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model User {
-  id           String   @id @default(uuid())
-  name         String
-  email        String?  @unique
-  rollNumber   String?  @unique
-  className    String?
+  id              String  @id @default(uuid())
+  name            String
+  email           String? @unique
+  rollNumber      String? @unique
+  className       String?
+  address         String?
   profilePhotoUrl String?
-  password     String
-  role         Role
+  password        String
+  role            Role
 
-  refreshTokens    RefreshToken[]
-  sessions         Session[]
-  otps             OTP[]
-  deviceTokens     DeviceToken[]
+  refreshTokens RefreshToken[]
+  sessions      Session[]
+  otps          OTP[]
+  deviceTokens  DeviceToken[]
 
-  taughtCourses     Course[]     @relation("TeacherCourses")
+  taughtCourses       Course[]              @relation("TeacherCourses")
   subjectCourseAccess TeacherCourseAccess[] @relation("SubjectTeacherAccess")
-  enrollments       Enrollment[] @relation("StudentEnrollments")
-  attendanceRecords Attendance[] @relation("StudentAttendance")
-  sentChatMessages  ClassroomMessage[] @relation("ClassroomMessageSender")
-  createdHomework Homework[] @relation("HomeworkTeacher")
-  createdNotices Notice[] @relation("NoticeCreator")
+  enrollments         Enrollment[]          @relation("StudentEnrollments")
+  attendanceRecords   Attendance[]          @relation("StudentAttendance")
+  sentChatMessages    ClassroomMessage[]    @relation("ClassroomMessageSender")
+  createdHomework     Homework[]            @relation("HomeworkTeacher")
+  createdNotices      Notice[]              @relation("NoticeCreator")
 
   homeworkSubmissions HomeworkSubmission[] @relation("HomeworkStudent")
-  leaves            Leave[]
-  uploadedFiles File[] @relation("UploadedFiles")
-  gradedSubmissions HomeworkSubmission[] @relation("HomeworkGrader")
-  studentProfile StudentProfile?
-  timetableEntries TimetableEntry[] @relation("TimetableEntryTeacher")
-  createdTimetables Timetable[] @relation("TimetableCreator")
+  leaves              Leave[]
+  uploadedFiles       File[]               @relation("UploadedFiles")
+  gradedSubmissions   HomeworkSubmission[] @relation("HomeworkGrader")
+  studentProfile      StudentProfile?
+  timetableEntries    TimetableEntry[]     @relation("TimetableEntryTeacher")
+  createdTimetables   Timetable[]          @relation("TimetableCreator")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -137,7 +138,7 @@ model Session {
   userId String
 
   ipAddress String?
-  device String?
+  device    String?
 
   user User @relation(fields: [userId], references: [id])
 
@@ -161,7 +162,7 @@ model OTP {
 model Course {
   id String @id @default(uuid())
 
-  title String
+  title       String
   description String?
 
   teacherId String
@@ -170,12 +171,12 @@ model Course {
 
   subjectTeacherAccess TeacherCourseAccess[] @relation("SubjectCourseAccess")
 
-  enrollments Enrollment[]
-  attendance Attendance[]
-  chatMessages ClassroomMessage[]
-  homework Homework[]
+  enrollments          Enrollment[]
+  attendance           Attendance[]
+  chatMessages         ClassroomMessage[]
+  homework             Homework[]
   timetableAssignments TimetableAssignment[]
-  timetableEntries TimetableEntry[]
+  timetableEntries     TimetableEntry[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -188,8 +189,8 @@ model TeacherCourseAccess {
   subjectName String?
   createdAt   DateTime @default(now())
 
-  teacher User @relation("SubjectTeacherAccess", fields: [teacherId], references: [id], onDelete: Cascade)
-  course Course @relation("SubjectCourseAccess", fields: [courseId], references: [id], onDelete: Cascade)
+  teacher User   @relation("SubjectTeacherAccess", fields: [teacherId], references: [id], onDelete: Cascade)
+  course  Course @relation("SubjectCourseAccess", fields: [courseId], references: [id], onDelete: Cascade)
 
   @@unique([teacherId, courseId])
   @@index([courseId])
@@ -199,7 +200,7 @@ model Enrollment {
   id String @id @default(uuid())
 
   studentId String
-  courseId String
+  courseId  String
 
   student User @relation("StudentEnrollments", fields: [studentId], references: [id])
 
@@ -214,11 +215,11 @@ model Attendance {
   id String @id @default(uuid())
 
   studentId String
-  courseId String?
+  courseId  String?
 
   date DateTime
 
-  mode AttendanceMode
+  mode   AttendanceMode
   status AttendanceStatus
 
   markedBy String
@@ -237,10 +238,10 @@ model ClassroomMessage {
 
   courseId String
   senderId String
-  content String
+  content  String
 
   course Course @relation(fields: [courseId], references: [id])
-  sender User @relation("ClassroomMessageSender", fields: [senderId], references: [id])
+  sender User   @relation("ClassroomMessageSender", fields: [senderId], references: [id])
 
   createdAt DateTime @default(now())
 
@@ -251,23 +252,23 @@ model ClassroomMessage {
 model Homework {
   id String @id @default(uuid())
 
-  title String
-  description String?
+  title        String
+  description  String?
   instructions String?
 
-  courseId String
+  courseId  String
   teacherId String
 
-  dueAt DateTime?
-  allowLateSubmission Boolean @default(false)
+  dueAt                DateTime?
+  allowLateSubmission  Boolean   @default(false)
   resubmissionOpenedAt DateTime?
 
   totalMarks Int?
 
   status HomeworkStatus @default(PUBLISHED)
 
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  teacher User @relation("HomeworkTeacher", fields: [teacherId], references: [id])
+  course  Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  teacher User   @relation("HomeworkTeacher", fields: [teacherId], references: [id])
 
   attachments HomeworkAttachment[]
 
@@ -280,13 +281,14 @@ model Homework {
   @@index([teacherId])
   @@index([dueAt])
 }
+
 model Leave {
   id String @id @default(uuid())
 
   studentId String
 
   fromDate DateTime
-  toDate DateTime
+  toDate   DateTime
 
   reason String
 
@@ -302,10 +304,10 @@ model HomeworkAttachment {
   id String @id @default(uuid())
 
   homeworkId String
-  fileId String
+  fileId     String
 
   homework Homework @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
-  file File @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  file     File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 
@@ -313,11 +315,12 @@ model HomeworkAttachment {
   @@index([homeworkId])
   @@index([fileId])
 }
+
 model HomeworkSubmission {
   id String @id @default(uuid())
 
   homeworkId String
-  studentId String
+  studentId  String
 
   textSubmission String?
 
@@ -325,8 +328,8 @@ model HomeworkSubmission {
 
   status SubmissionStatus @default(PENDING)
 
-  marks Int?
-  gradedAt DateTime?
+  marks      Int?
+  gradedAt   DateTime?
   gradedById String?
 
   gradedBy User? @relation("HomeworkGrader", fields: [gradedById], references: [id])
@@ -334,7 +337,7 @@ model HomeworkSubmission {
   feedback String?
 
   homework Homework @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
-  student User @relation("HomeworkStudent", fields: [studentId], references: [id])
+  student  User     @relation("HomeworkStudent", fields: [studentId], references: [id])
 
   attachments SubmissionAttachment[]
 
@@ -342,18 +345,18 @@ model HomeworkSubmission {
   updatedAt DateTime @updatedAt
 
   @@unique([homeworkId, studentId])
-
   @@index([homeworkId])
   @@index([studentId])
 }
+
 model SubmissionAttachment {
   id String @id @default(uuid())
 
   submissionId String
-  fileId String
+  fileId       String
 
   submission HomeworkSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  file File @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  file       File               @relation(fields: [fileId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 
@@ -361,32 +364,33 @@ model SubmissionAttachment {
   @@index([submissionId])
   @@index([fileId])
 }
+
 model File {
   id String @id @default(uuid())
 
-  fileName String
+  fileName     String
   originalName String
 
-  mimeType String
+  mimeType  String
   extension String?
 
   size Int
 
   storagePath String
-  publicUrl String
+  publicUrl   String
 
   uploadedById String?
 
   uploadedBy User? @relation("UploadedFiles", fields: [uploadedById], references: [id])
 
-  homeworkAttachments HomeworkAttachment[]
+  homeworkAttachments   HomeworkAttachment[]
   submissionAttachments SubmissionAttachment[]
-  noticeAttachments NoticeAttachment[]
-  isDeleted Boolean @default(false)
+  noticeAttachments     NoticeAttachment[]
+  isDeleted             Boolean                @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  checksum String?
+  checksum  String?
 
   @@index([uploadedById])
 }
@@ -394,8 +398,8 @@ model File {
 model Holiday {
   id String @id @default(uuid())
 
-  title String
-  date DateTime @unique
+  title     String
+  date      DateTime @unique
   createdBy String
 
   createdAt DateTime @default(now())
@@ -405,11 +409,11 @@ model Holiday {
 model Notice {
   id String @id @default(uuid())
 
-  title String
+  title   String
   content String?
 
   createdById String
-  createdBy User @relation("NoticeCreator", fields: [createdById], references: [id])
+  createdBy   User   @relation("NoticeCreator", fields: [createdById], references: [id])
 
   attachments NoticeAttachment[]
 
@@ -423,10 +427,10 @@ model NoticeAttachment {
   id String @id @default(uuid())
 
   noticeId String
-  fileId String
+  fileId   String
 
   notice Notice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
-  file File @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  file   File   @relation(fields: [fileId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 
@@ -435,35 +439,35 @@ model NoticeAttachment {
 }
 
 model Timetable {
-  id String @id @default(uuid())
-  name String
-  className String
-  section String?
-  isPublished Boolean @default(true)
+  id          String                @id @default(uuid())
+  name        String
+  className   String
+  section     String?
+  isPublished Boolean               @default(true)
   createdById String
-  createdBy User @relation("TimetableCreator", fields: [createdById], references: [id])
-  entries TimetableEntry[]
+  createdBy   User                  @relation("TimetableCreator", fields: [createdById], references: [id])
+  entries     TimetableEntry[]
   assignments TimetableAssignment[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
 
   @@index([className, section])
   @@index([createdById])
 }
 
 model TimetableEntry {
-  id String @id @default(uuid())
+  id          String    @id @default(uuid())
   timetableId String
-  dayOfWeek Int
-  startTime String
-  endTime String
-  subject String
-  room String?
-  teacherId String?
-  courseId String?
-  timetable Timetable @relation(fields: [timetableId], references: [id], onDelete: Cascade)
-  teacher User? @relation("TimetableEntryTeacher", fields: [teacherId], references: [id])
-  course Course? @relation(fields: [courseId], references: [id])
+  dayOfWeek   Int
+  startTime   String
+  endTime     String
+  subject     String
+  room        String?
+  teacherId   String?
+  courseId    String?
+  timetable   Timetable @relation(fields: [timetableId], references: [id], onDelete: Cascade)
+  teacher     User?     @relation("TimetableEntryTeacher", fields: [teacherId], references: [id])
+  course      Course?   @relation(fields: [courseId], references: [id])
 
   @@unique([timetableId, dayOfWeek, startTime, endTime])
   @@index([teacherId])
@@ -471,11 +475,11 @@ model TimetableEntry {
 }
 
 model TimetableAssignment {
-  id String @id @default(uuid())
+  id          String    @id @default(uuid())
   timetableId String
-  courseId String
-  timetable Timetable @relation(fields: [timetableId], references: [id], onDelete: Cascade)
-  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId    String
+  timetable   Timetable @relation(fields: [timetableId], references: [id], onDelete: Cascade)
+  course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   @@unique([timetableId, courseId])
   @@index([courseId])

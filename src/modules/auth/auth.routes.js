@@ -5,6 +5,7 @@ const role = require("../../shared/middlewares/role.middleware");
 
 // Public
 router.post("/register", (req, res) => controller.register(req, res));
+router.post("/login", (req, res) => controller.login(req, res));
 router.post("/login/student", (req, res) => controller.studentLogin(req, res));
 router.post("/login/teacher", (req, res) => controller.teacherLogin(req, res));
 router.post("/refresh", (req, res) => controller.refresh(req, res));

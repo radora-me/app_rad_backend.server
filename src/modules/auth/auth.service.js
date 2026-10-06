@@ -46,6 +46,24 @@ class AuthService {
     return this._issueTokens(user);
   }
 
+  async login({ identifier, password }) {
+    const normalizedIdentifier = identifier.trim().toLowerCase();
+    const user = await repo.findByIdentifier(normalizedIdentifier);
+
+    if (!user || !["student", "teacher", "admin"].includes(user.role)) {
+      throw new Error("Invalid credentials");
+    }
+
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) throw new Error("Invalid credentials");
+
+    if (user.role === "teacher") {
+      user.isSubjectTeacher = !(await repo.hasOwnedCourses(user.id));
+    }
+
+    return this._issueTokens(user);
+  }
+
   async teacherLogin({ email, password }) {
     const user = await repo.findByEmail(email);
     if (!user || !["teacher", "admin"].includes(user.role))
@@ -209,7 +227,7 @@ class AuthService {
     const updated = await repo.updateUser(teacherId, {
       ...(name && { name: name.trim() }),
       ...(email && { email: email.trim().toLowerCase() }),
-      ...(address !== undefined && { className: address.trim() }),
+      ...(address !== undefined && { address: address.trim() }),
     });
     return this._toTeacherPayload(updated);
   }
@@ -241,7 +259,7 @@ class AuthService {
       id: teacher.id,
       name: teacher.name,
       email: teacher.email,
-      address: teacher.className || "",
+      address: teacher.address || "",
       courses: (teacher.taughtCourses || []).map((c) => ({
         id: c.id,
         title: c.title,
@@ -267,49 +285,63 @@ class AuthService {
     return { message: "Logged out successfully" };
   }
 
-  async forgotPassword(email) {
-    const normalizedEmail = email.trim().toLowerCase();
-    const user = await repo.findByEmail(normalizedEmail);
+  async forgotPassword(identifier) {
+    const normalizedIdentifier = identifier.trim().toLowerCase();
+    const user = await repo.findByIdentifier(normalizedIdentifier);
+    const genericResponse = {
+      message: "If the account exists and has a recovery address, a verification code will be sent.",
+    };
 
-    // Password resets are available only to existing teacher and admin accounts.
-    if (!user || !["teacher", "admin"].includes(user.role)) {
-      throw new Error("No teacher or admin account exists with this email");
+    if (!user || !["student", "teacher", "admin"].includes(user.role)) {
+      return genericResponse;
     }
+
+    const recipient = user.role === "student"
+      ? user.studentProfile?.parentEmail
+      : user.email;
+
+    if (!recipient) return genericResponse;
 
     const otp = String(Math.floor(100000 + Math.random() * 900000));
     const resetToken = crypto.randomBytes(32).toString("hex");
 
     // Store OTP and resetToken in Redis — 10 min TTL
-    await redis.set(`otp:${normalizedEmail}`, otp, "EX", 600);
+    await redis.set(`otp:${normalizedIdentifier}`, otp, "EX", 600);
     await redis.set(`reset_token:${resetToken}`, user.id, "EX", 600);
 
     await sendPasswordResetEmail({
-      to: normalizedEmail,
+      to: recipient,
       name: user.name,
       otp,
       resetToken,
     });
 
-    return { message: "A password reset link and OTP have been sent." };
+    return genericResponse;
   }
 
-  async verifyOtp(email, otp) {
-    const normalizedEmail = email.trim().toLowerCase();
-    const storedOtp = await redis.get(`otp:${normalizedEmail}`);
+  async verifyOtp(identifier, otp) {
+    const normalizedIdentifier = identifier.trim().toLowerCase();
+    const attemptsKey = `otp_attempts:${normalizedIdentifier}`;
+    const attempts = await redis.incr(attemptsKey);
+    if (attempts === 1) await redis.expire(attemptsKey, 600);
+    if (attempts > 5) throw new Error("Invalid or expired OTP");
+
+    const storedOtp = await redis.get(`otp:${normalizedIdentifier}`);
 
     if (!storedOtp || storedOtp !== otp.trim()) {
       throw new Error("Invalid or expired OTP");
     }
 
-    const user = await repo.findByEmail(normalizedEmail);
-    if (!user || !["teacher", "admin"].includes(user.role)) {
+    const user = await repo.findByIdentifier(normalizedIdentifier);
+    if (!user || !["student", "teacher", "admin"].includes(user.role)) {
       throw new Error("Invalid or expired OTP");
     }
 
     // OTP verified — issue a short-lived reset token
     const resetToken = crypto.randomBytes(32).toString("hex");
     await redis.set(`reset_token:${resetToken}`, user.id, "EX", 600);
-    await redis.del(`otp:${normalizedEmail}`);
+    await redis.del(`otp:${normalizedIdentifier}`);
+    await redis.del(attemptsKey);
 
     return { resetToken };
   }
@@ -319,7 +351,7 @@ class AuthService {
     if (!userId) throw new Error("Reset link is invalid or has expired");
 
     const user = await repo.findById(userId);
-    if (!user || !["teacher", "admin"].includes(user.role)) {
+    if (!user || !["student", "teacher", "admin"].includes(user.role)) {
       await redis.del(`reset_token:${resetToken}`);
       throw new Error("Reset link is invalid or has expired");
     }
@@ -332,7 +364,7 @@ class AuthService {
     if (!userId) throw new Error("Reset link is invalid or has expired");
 
     const user = await repo.findById(userId);
-    if (!user || !["teacher", "admin"].includes(user.role)) {
+    if (!user || !["student", "teacher", "admin"].includes(user.role)) {
       await redis.del(`reset_token:${resetToken}`);
       throw new Error("Reset link is invalid or has expired");
     }

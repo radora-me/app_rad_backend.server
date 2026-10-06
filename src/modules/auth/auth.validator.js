@@ -5,6 +5,11 @@ exports.studentLoginSchema = Joi.object({
   password: Joi.string().required(),
 });
 
+exports.loginSchema = Joi.object({
+  identifier: Joi.string().trim().min(1).max(254).required(),
+  password: Joi.string().required(),
+});
+
 exports.teacherLoginSchema = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().required(),
@@ -46,11 +51,11 @@ exports.updateAdminSchema = Joi.object({
 });
 
 exports.forgotPasswordSchema = Joi.object({
-  email: Joi.string().email().required(),
+  identifier: Joi.string().trim().min(1).max(254).required(),
 });
 
 exports.verifyOtpSchema = Joi.object({
-  email: Joi.string().email().required(),
+  identifier: Joi.string().trim().min(1).max(254).required(),
   otp: Joi.string().length(6).required(),
 });
 

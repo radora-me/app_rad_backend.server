@@ -13,6 +13,20 @@ class AuthRepository {
     return prisma.user.findUnique({ where: { rollNumber } });
   }
 
+  async findByIdentifier(identifier) {
+    if (identifier.includes("@")) {
+      return prisma.user.findUnique({
+        where: { email: identifier },
+        include: { studentProfile: true },
+      });
+    }
+
+    return prisma.user.findUnique({
+      where: { rollNumber: identifier },
+      include: { studentProfile: true },
+    });
+  }
+
   async findById(id) {
     return prisma.user.findUnique({ where: { id } });
   }
