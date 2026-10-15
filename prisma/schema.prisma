@@ -80,6 +80,15 @@ enum FinancePaymentStatus {
   PENDING
   COMPLETED
   REFUNDED
+  FAILED
+}
+
+enum CashfreeOrderStatus {
+  ACTIVE
+  PAID
+  FAILED
+  EXPIRED
+  CANCELLED
 }
 
 enum FinanceExpenseStatus {
@@ -156,8 +165,10 @@ model User {
 
   financeStudentAssignments FinanceStudentFeeAssignment[] @relation("FinanceStudent")
   financeCreatedInvoices    FeeInvoice[]                  @relation("FinanceInvoiceCreatedBy")
+  financeDeletedInvoices    FeeInvoice[]                  @relation("FinanceInvoiceDeletedBy")
   financeInvoiceStudent     FeeInvoice[]                  @relation("FinanceInvoiceStudent")
   financeReceivedPayments   FinancePayment[]              @relation("FinancePaymentReceivedBy")
+  financeGatewayOrders      FinanceGatewayOrder[]         @relation("FinanceGatewayStudent")
   financeCreatedJournals    FinanceJournalEntry[]         @relation("FinanceJournalCreatedBy")
   financeCreatedExpenses    FinanceExpenseBill[]          @relation("FinanceExpenseCreatedBy")
   financeApprovals          FinanceExpenseApproval[]      @relation("FinanceApprovalBy")
@@ -618,15 +629,21 @@ model FeeInvoice {
   student       User?                        @relation("FinanceInvoiceStudent", fields: [studentId], references: [id])
   createdById   String
   createdBy     User                         @relation("FinanceInvoiceCreatedBy", fields: [createdById], references: [id])
+  deletedAt     DateTime?
+  deletedById   String?
+  deletionReason String?
+  deletedBy     User?                        @relation("FinanceInvoiceDeletedBy", fields: [deletedById], references: [id])
   installments  FinanceInstallment[]
   payments      FinancePayment[]
   refunds       FinanceRefund[]
   receipts      FinanceReceipt[]
+  gatewayOrders FinanceGatewayOrder[]
   createdAt     DateTime                     @default(now())
   updatedAt     DateTime                     @updatedAt
 
   @@index([studentId, status])
   @@index([dueDate, status])
+  @@index([deletedAt])
 }
 
 model FinanceInstallment {
@@ -678,9 +695,37 @@ model FinancePayment {
   receivedById String
   receivedBy   User                 @relation("FinancePaymentReceivedBy", fields: [receivedById], references: [id])
   receipts     FinanceReceipt[]
+  gatewayOrderId String?             @unique
+  gatewayOrder  FinanceGatewayOrder? @relation("GatewayPayment", fields: [gatewayOrderId], references: [id])
+  gatewayPaymentId String?
+  gatewayPayload Json?
   createdAt    DateTime             @default(now())
 
   @@index([paidAt, status])
+}
+
+model FinanceGatewayOrder {
+  id                String             @id @default(uuid())
+  orderId           String             @unique
+  invoiceId         String
+  studentId         String
+  paymentSessionId  String?
+  amount            Decimal            @db.Decimal(14, 2)
+  currency          String             @default("INR")
+  status            CashfreeOrderStatus @default(ACTIVE)
+  cashfreePaymentId String?
+  lastEventType     String?
+  lastWebhookAt     DateTime?
+  rawPayload        Json?
+  expiresAt         DateTime?
+  invoice           FeeInvoice         @relation(fields: [invoiceId], references: [id])
+  student           User               @relation("FinanceGatewayStudent", fields: [studentId], references: [id])
+  payment           FinancePayment?    @relation("GatewayPayment")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([invoiceId, status])
+  @@index([studentId, status])
 }
 
 model FinanceRefund {

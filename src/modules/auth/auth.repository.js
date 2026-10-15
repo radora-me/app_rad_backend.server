@@ -10,7 +10,7 @@ class AuthRepository {
   }
 
   async findByRollNumber(rollNumber) {
-    return prisma.user.findUnique({ where: { rollNumber } });
+    return prisma.user.findUnique({ where: { rollNumber }, include: { studentProfile: true } });
   }
 
   async findByIdentifier(identifier) {

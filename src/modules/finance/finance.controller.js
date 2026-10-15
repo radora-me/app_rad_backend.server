@@ -49,6 +49,7 @@ class FinanceController {
   async dashboard(req, res) { return this._run(res, () => service.dashboard()); }
   async list(req, res) { return this._run(res, () => service.list(req.params.resource)); }
   async createInvoice(req, res) { return this._run(res, () => service.createInvoice(req.user.id, req.body), 201); }
+  async deleteInvoice(req, res) { return this._run(res, () => service.deleteInvoice(req.user.id, req.params.id)); }
   async recordPayment(req, res) { return this._run(res, () => service.recordPayment(req.user.id, req.body), 201); }
   async createExpense(req, res) { return this._run(res, () => service.createExpense(req.user.id, req.body), 201); }
   async updateExpense(req, res) { return this._run(res, () => service.updateExpense(req.user.id, req.params.id, req.body.status, req.body.comment)); }

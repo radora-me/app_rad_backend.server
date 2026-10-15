@@ -8,6 +8,7 @@ const toDate = (value, fallback = new Date()) => {
 };
 
 const id = (prefix) => `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+const ACCOUNTING_TRANSACTION_OPTIONS = { maxWait: 10000, timeout: 15000 };
 
 async function ensureSystemAccounts(tx) {
   const accounts = [
@@ -57,11 +58,11 @@ async function createPostedJournal(tx, { description, source, createdById, lines
 async function dashboard() {
   const now = new Date();
   const [invoiceAgg, paymentAgg, expenseAgg, outstandingCount, overdueCount, recentPayments, recentExpenses, recentJournals] = await Promise.all([
-    prisma.feeInvoice.aggregate({ _sum: { total: true, paidAmount: true } }),
+    prisma.feeInvoice.aggregate({ where: { deletedAt: null }, _sum: { total: true, paidAmount: true } }),
     prisma.financePayment.aggregate({ where: { status: "COMPLETED" }, _sum: { amount: true } }),
     prisma.financeExpenseBill.aggregate({ where: { status: { not: "REJECTED" } }, _sum: { amount: true } }),
-    prisma.feeInvoice.count({ where: { status: { in: ["ISSUED", "PARTIALLY_PAID", "OVERDUE"] } } }),
-    prisma.feeInvoice.count({ where: { dueDate: { lt: now }, status: { in: ["ISSUED", "PARTIALLY_PAID", "OVERDUE"] } } }),
+    prisma.feeInvoice.count({ where: { deletedAt: null, status: { in: ["ISSUED", "PARTIALLY_PAID", "OVERDUE"] } } }),
+    prisma.feeInvoice.count({ where: { deletedAt: null, dueDate: { lt: now }, status: { in: ["ISSUED", "PARTIALLY_PAID", "OVERDUE"] } } }),
     prisma.financePayment.findMany({ orderBy: { paidAt: "desc" }, take: 6, include: { invoice: true } }),
     prisma.financeExpenseBill.findMany({ orderBy: { billDate: "desc" }, take: 6, include: { vendor: true, category: true } }),
     prisma.financeJournalEntry.findMany({ orderBy: { entryDate: "desc" }, take: 6, include: { lines: true } }),
@@ -105,8 +106,9 @@ async function dashboard() {
 
 async function list(resource) {
   const include = {
-    invoices: () => prisma.feeInvoice.findMany({ orderBy: { issueDate: "desc" }, take: 100, include: { student: { select: { id: true, name: true, rollNumber: true } }, payments: true } }),
-    payments: () => prisma.financePayment.findMany({ orderBy: { paidAt: "desc" }, take: 100, include: { invoice: true, receivedBy: { select: { name: true } } } }),
+    invoices: () => prisma.feeInvoice.findMany({ where: { deletedAt: null }, orderBy: { issueDate: "desc" }, take: 100, include: { student: { select: { id: true, name: true, rollNumber: true } }, payments: { select: { id: true, reference: true, amount: true, method: true, status: true, paidAt: true, receipts: { select: { id: true, receiptNumber: true, issuedAt: true } } } } } }),
+    deletedInvoices: () => prisma.feeInvoice.findMany({ where: { deletedAt: { not: null } }, orderBy: { deletedAt: "desc" }, take: 100, include: { student: { select: { id: true, name: true, rollNumber: true } }, deletedBy: { select: { id: true, name: true } } } }),
+    payments: () => prisma.financePayment.findMany({ orderBy: { paidAt: "desc" }, take: 100, select: { id: true, reference: true, invoiceId: true, amount: true, method: true, status: true, paidAt: true, notes: true, receivedById: true, createdAt: true, receipts: { select: { id: true, receiptNumber: true, issuedAt: true } }, invoice: { include: { student: { select: { id: true, name: true, rollNumber: true } } } }, receivedBy: { select: { name: true } } } }),
     expenses: () => prisma.financeExpenseBill.findMany({ orderBy: { billDate: "desc" }, take: 100, include: { vendor: true, category: true, approvals: true } }),
     journals: () => prisma.financeJournalEntry.findMany({ orderBy: { entryDate: "desc" }, take: 100, include: { lines: { include: { account: true } } } }),
     accounts: () => prisma.financeAccount.findMany({ where: { isActive: true }, orderBy: { code: "asc" } }),
@@ -120,7 +122,7 @@ async function list(resource) {
     discounts: () => prisma.financeDiscount.findMany({ orderBy: { name: "asc" } }),
     scholarships: () => prisma.financeScholarship.findMany({ orderBy: { name: "asc" } }),
     refunds: () => prisma.financeRefund.findMany({ orderBy: { refundedAt: "desc" }, include: { invoice: true } }),
-    receipts: () => prisma.financeReceipt.findMany({ orderBy: { issuedAt: "desc" }, include: { invoice: true, payment: true } }),
+    receipts: () => prisma.financeReceipt.findMany({ orderBy: { issuedAt: "desc" }, include: { invoice: true, payment: { select: { id: true, reference: true, amount: true, method: true, status: true, paidAt: true } } } }),
     incomes: () => prisma.financeIncome.findMany({ orderBy: { receivedAt: "desc" } }),
     recurringExpenses: () => prisma.financeRecurringExpense.findMany({ orderBy: { nextRunAt: "asc" }, include: { vendor: true } }),
     bankAccounts: () => prisma.financeBankAccount.findMany({ orderBy: { name: "asc" } }),
@@ -154,7 +156,26 @@ async function createInvoice(userId, input) {
       { accountId: accounts["1100"].id, debit: total }, { accountId: accounts["4000"].id, credit: total },
     ] });
     return invoice;
-  });
+  }, ACCOUNTING_TRANSACTION_OPTIONS);
+}
+
+async function deleteInvoice(userId, invoiceId) {
+  return prisma.$transaction(async (tx) => {
+    const invoice = await tx.feeInvoice.findUnique({
+      where: { id: invoiceId },
+      include: { payments: { select: { id: true } }, gatewayOrders: { select: { id: true } } },
+    });
+    if (!invoice) throw new Error("Invoice not found");
+    if (invoice.deletedAt) throw new Error("This fee due has already been deleted");
+    if (invoice.status !== "ISSUED") throw new Error("Only ISSUED fee dues can be deleted");
+    if (money(invoice.paidAmount) > 0 || invoice.payments.length || invoice.gatewayOrders.length) {
+      throw new Error("This fee due has payment activity and must remain permanently stored");
+    }
+    return tx.feeInvoice.update({
+      where: { id: invoiceId },
+      data: { status: "CANCELLED", deletedAt: new Date(), deletedById: userId, deletionReason: "Mistaken fee due removed by administrator" },
+    });
+  }, ACCOUNTING_TRANSACTION_OPTIONS);
 }
 
 async function recordPayment(userId, input) {
@@ -163,6 +184,7 @@ async function recordPayment(userId, input) {
   return prisma.$transaction(async (tx) => {
     const invoice = input.invoiceId ? await tx.feeInvoice.findUnique({ where: { id: input.invoiceId } }) : null;
     if (input.invoiceId && !invoice) throw new Error("Invoice not found");
+    if (invoice?.deletedAt || invoice?.status === "CANCELLED") throw new Error("This fee due is deleted and cannot receive payments");
     if (invoice && amount > money(invoice.total) - money(invoice.paidAmount) + 0.01) throw new Error("Payment exceeds invoice balance");
     const payment = await tx.financePayment.create({ data: { reference: input.reference || id("PAY"), invoiceId: input.invoiceId || null, amount, method: input.method || "CASH", notes: input.notes || null, receivedById: userId } });
     if (invoice) {
@@ -175,7 +197,7 @@ async function recordPayment(userId, input) {
       { accountId: accounts["1000"].id, debit: amount }, { accountId: accounts["1100"].id, credit: amount },
     ] });
     return payment;
-  });
+  }, ACCOUNTING_TRANSACTION_OPTIONS);
 }
 
 async function createExpense(userId, input) {
@@ -198,12 +220,12 @@ async function updateExpense(userId, billId, status, comment) {
       ] });
     }
     return updated;
-  });
+  }, ACCOUNTING_TRANSACTION_OPTIONS);
 }
 
 async function createJournal(userId, input) {
   if (!input.description || !Array.isArray(input.lines) || input.lines.length < 2) throw new Error("A journal needs a description and at least two lines");
-  return prisma.$transaction((tx) => createPostedJournal(tx, { description: input.description, source: "MANUAL", createdById: userId, lines: input.lines }));
+  return prisma.$transaction((tx) => createPostedJournal(tx, { description: input.description, source: "MANUAL", createdById: userId, lines: input.lines }), ACCOUNTING_TRANSACTION_OPTIONS);
 }
 
-module.exports = { dashboard, list, createInvoice, recordPayment, createExpense, updateExpense, createJournal };
+module.exports = { dashboard, list, createInvoice, deleteInvoice, recordPayment, createExpense, updateExpense, createJournal };

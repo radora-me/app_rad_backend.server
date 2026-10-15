@@ -181,7 +181,7 @@ class AuthService {
   }
 
   async findStudentByRollNumber(rollNumber) {
-    const student = await repo.findByRollNumber(rollNumber);
+    const student = await repo.findByRollNumber(String(rollNumber || "").trim());
 
     if (!student || student.role !== "student") {
       throw new Error("Student not found");
@@ -190,8 +190,11 @@ class AuthService {
     return {
       id: student.id,
       name: student.name,
+      email: student.email || null,
       rollNumber: student.rollNumber,
       className: student.className || student.class || "",
+      parentName: student.studentProfile?.parentName || null,
+      parentPhone: student.studentProfile?.parentPhone || null,
       profilePhotoUrl: student.profilePhotoUrl || null,
       role: student.role,
     };
