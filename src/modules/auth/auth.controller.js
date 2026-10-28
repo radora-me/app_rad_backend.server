@@ -12,6 +12,7 @@ const {
   resetPasswordSchema,
   updateTeacherSchema,
   updateAdminSchema,
+  createLibrarianSchema,
 } = require("./auth.validator");
 const Joi = require("joi");
 
@@ -299,6 +300,8 @@ class AuthController {
 
   async createLibrarian(req, res) {
     try {
+      const { error } = createLibrarianSchema.validate(req.body);
+      if (error) return res.status(400).json({ error: error.message });
       const result = await service.createLibrarian(req.body, req.user.id);
       res.status(201).json(result);
     } catch (err) {

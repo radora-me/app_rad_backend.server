@@ -17,7 +17,9 @@ router.post("/reset-password", (req, res) => controller.resetPassword(req, res))
 // Authenticated
 router.post("/logout", auth, (req, res) => controller.logout(req, res));
 router.get("/me", auth, (req, res) => controller.getCurrentUser(req, res));
-router.post("/profile/photo", auth, role(["teacher", "admin"]), (req, res) =>
+
+// Profile photo — teacher, admin, librarian
+router.post("/profile/photo", auth, role(["teacher", "admin", "librarian"]), (req, res) =>
   controller.uploadOwnProfilePhoto(req, res),
 );
 
@@ -43,6 +45,7 @@ router.get("/admin/holidays", auth, role(["admin"]), (req, res) =>
 router.post("/admin/assign-teacher-class", auth, role(["admin"]), (req, res) =>
   controller.assignTeacherClass(req, res),
 );
+
 // Teacher — own profile
 router.get("/teacher/me", auth, role(["teacher"]), (req, res) =>
   controller.getTeacher({ ...req, params: { teacherId: req.user.id } }, res),
@@ -84,9 +87,6 @@ router.get("/librarian/me", auth, role(["librarian"]), (req, res) =>
 );
 router.patch("/librarian/me", auth, role(["librarian"]), (req, res) =>
   controller.updateLibrarianProfile(req, res),
-);
-router.post("/profile/photo", auth, role(["teacher", "admin", "librarian"]), (req, res) =>
-  controller.uploadOwnProfilePhoto(req, res),
 );
 
 module.exports = router;
