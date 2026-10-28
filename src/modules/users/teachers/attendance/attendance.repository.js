@@ -76,9 +76,29 @@ class AttendanceRepository {
     });
   }
 
-  async verifyTeacherCourse(courseId, teacherId) {
+  async verifyTeacherCourse(courseId, teacherId, role = "teacher") {
     return prisma.course.findFirst({
-      where: { id: courseId, teacherId },
+      where: { id: courseId, ...(role === "admin" ? {} : { teacherId }) },
+    });
+  }
+
+  async listAllCourses() {
+    return prisma.course.findMany({
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        _count: { select: { enrollments: true } },
+      },
+      orderBy: [{ title: "asc" }, { description: "asc" }],
+    });
+  }
+
+  async getStudentAttendanceHistory(courseId, studentId) {
+    return prisma.attendance.findMany({
+      where: { courseId, studentId },
+      select: { date: true, status: true, mode: true },
+      orderBy: { date: "desc" },
     });
   }
 

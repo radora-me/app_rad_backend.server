@@ -26,6 +26,7 @@ function getAttachmentDownloadUrl(url) {
 function normalizeUploadOptions(options = {}) {
   const normalized = { ...options }
 
+  // Only auto-detect format from public_id extension if format was NOT explicitly provided
   if (normalized.public_id && !normalized.format) {
     const match = String(normalized.public_id).match(/\.([a-z0-9]+)$/i)
     if (match?.[1]) {
@@ -42,7 +43,7 @@ async function uploadBuffer(buffer, options = {}) {
     const stream = cloudinary.uploader.upload_stream(normalizedOptions, (error, result) => {
       if (error) return reject(error)
 
-      if (result?.secure_url) {
+      if (result?.secure_url && normalizedOptions.resource_type === 'raw') {
         result.secure_url = withAttachmentDownloadUrl(result.secure_url)
       }
 
@@ -52,8 +53,8 @@ async function uploadBuffer(buffer, options = {}) {
   })
 }
 
-async function deleteFile(publicId) {
-  return cloudinary.uploader.destroy(publicId, { resource_type: 'raw' })
+async function deleteFile(publicId, resourceType = 'raw') {
+  return cloudinary.uploader.destroy(publicId, { resource_type: resourceType })
 }
 
 module.exports = { uploadBuffer, deleteFile, getAttachmentDownloadUrl, withAttachmentDownloadUrl }

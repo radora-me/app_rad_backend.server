@@ -101,7 +101,7 @@ class AttendanceService {
     }
   }
 
-  async markFullDayAttendance(teacherId, body) {
+  async markFullDayAttendance(teacherId, body, role = 'teacher') {
     const { error, value } = fullDaySchema.validate(body)
     if (error) throw new Error(error.message)
 
@@ -113,12 +113,12 @@ class AttendanceService {
     const courseId = value.courseId || null
     const allowEdit = Boolean(value.allowEdit)
 
-    if (!courseId && !(await repo.hasOwnedCourses(teacherId))) {
+    if (!courseId && role !== 'admin' && !(await repo.hasOwnedCourses(teacherId))) {
       throw new Error('Subject teachers cannot mark attendance')
     }
 
     if (courseId) {
-      const course = await repo.verifyTeacherCourse(courseId, teacherId)
+      const course = await repo.verifyTeacherCourse(courseId, teacherId, role)
       if (!course) throw new Error('Course not found or not assigned to you')
 
       const enrolledStudents = await repo.getCourseStudents(courseId)
@@ -181,13 +181,13 @@ class AttendanceService {
     return results.map((record) => record.skipped ? record : this._attendanceResponse(record))
   }
 
-  async markSubjectWiseAttendance(teacherId, body) {
+  async markSubjectWiseAttendance(teacherId, body, role = 'teacher') {
     const { error, value } = subjectWiseSchema.validate(body)
     if (error) throw new Error(error.message)
 
     this._ensureNotSunday(value.date)
 
-    const course = await repo.verifyTeacherCourse(value.courseId, teacherId)
+    const course = await repo.verifyTeacherCourse(value.courseId, teacherId, role)
     if (!course) throw new Error('Course not found or not assigned to you')
 
     const enrolledStudents = await repo.getCourseStudents(value.courseId)
@@ -229,8 +229,8 @@ class AttendanceService {
     }
   }
 
-  async getCourseStudents(teacherId, courseId) {
-    const course = await repo.verifyTeacherCourse(courseId, teacherId)
+  async getCourseStudents(teacherId, courseId, role = 'teacher') {
+    const course = await repo.verifyTeacherCourse(courseId, teacherId, role)
     if (!course) throw new Error('Course not found or not assigned to you')
 
     const enrollments = await repo.getCourseStudents(courseId)
@@ -245,8 +245,8 @@ class AttendanceService {
     }))
   }
 
-  async getCourseAttendance(teacherId, courseId, date) {
-    const course = await repo.verifyTeacherCourse(courseId, teacherId)
+  async getCourseAttendance(teacherId, courseId, date, role = 'teacher') {
+    const course = await repo.verifyTeacherCourse(courseId, teacherId, role)
     if (!course) throw new Error('Course not found or not assigned to you')
 
     const enrollments = await repo.getCourseStudents(courseId)
@@ -279,8 +279,8 @@ class AttendanceService {
     }))
   }
 
-  async getStudentAttendance(teacherId, courseId, rollNumber, date) {
-    const course = await repo.verifyTeacherCourse(courseId, teacherId)
+  async getStudentAttendance(teacherId, courseId, rollNumber, date, role = 'teacher') {
+    const course = await repo.verifyTeacherCourse(courseId, teacherId, role)
     if (!course) throw new Error('Course not found or not assigned to you')
 
     const enrollment = await repo.getCourseStudentByRollNumber(courseId, rollNumber)
@@ -300,8 +300,8 @@ class AttendanceService {
     }
   }
 
-  async updateStudentAttendance(teacherId, courseId, rollNumber, body) {
-    const course = await repo.verifyTeacherCourse(courseId, teacherId)
+  async updateStudentAttendance(teacherId, courseId, rollNumber, body, role = 'teacher') {
+    const course = await repo.verifyTeacherCourse(courseId, teacherId, role)
     if (!course) throw new Error('Course not found or not assigned to you')
 
     const enrollment = await repo.getCourseStudentByRollNumber(courseId, rollNumber)
@@ -328,6 +328,27 @@ class AttendanceService {
     )
 
     return this._attendanceResponse(record)
+  }
+
+  async getStudentAttendanceHistory(teacherId, courseId, rollNumber, role = 'teacher') {
+    const course = await repo.verifyTeacherCourse(courseId, teacherId, role)
+    if (!course) throw new Error('Course not found or not assigned to you')
+
+    const enrollment = await repo.getCourseStudentByRollNumber(courseId, rollNumber)
+    if (!enrollment) throw new Error('Student not found in this class')
+
+    const records = await repo.getStudentAttendanceHistory(courseId, enrollment.student.id)
+    return {
+      name: enrollment.student.name,
+      rollNumber: enrollment.student.rollNumber,
+      courseTitle: enrollment.course.title,
+      section: enrollment.course.description || '',
+      records: records.map((record) => ({
+        date: record.date,
+        status: record.status,
+        mode: record.mode,
+      })),
+    }
   }
 }
 

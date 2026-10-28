@@ -17,6 +17,9 @@ router.post("/reset-password", (req, res) => controller.resetPassword(req, res))
 // Authenticated
 router.post("/logout", auth, (req, res) => controller.logout(req, res));
 router.get("/me", auth, (req, res) => controller.getCurrentUser(req, res));
+router.post("/profile/photo", auth, role(["teacher", "admin"]), (req, res) =>
+  controller.uploadOwnProfilePhoto(req, res),
+);
 
 // Admin only
 router.post("/admin/create-student", auth, role(["admin"]), (req, res) =>
@@ -62,6 +65,28 @@ router.get("/admin/profile", auth, role(["admin"]), (req, res) =>
 );
 router.patch("/admin/profile", auth, role(["admin"]), (req, res) =>
   controller.updateAdminProfile(req, res),
+);
+
+// Admin — librarian management
+router.post("/admin/create-librarian", auth, role(["admin"]), (req, res) =>
+  controller.createLibrarian(req, res),
+);
+router.get("/admin/librarians", auth, role(["admin"]), (req, res) =>
+  controller.listLibrarians(req, res),
+);
+router.delete("/admin/librarians/:librarianId", auth, role(["admin"]), (req, res) =>
+  controller.deleteLibrarian(req, res),
+);
+
+// Librarian — own profile
+router.get("/librarian/me", auth, role(["librarian"]), (req, res) =>
+  controller.getLibrarianProfile(req, res),
+);
+router.patch("/librarian/me", auth, role(["librarian"]), (req, res) =>
+  controller.updateLibrarianProfile(req, res),
+);
+router.post("/profile/photo", auth, role(["teacher", "admin", "librarian"]), (req, res) =>
+  controller.uploadOwnProfilePhoto(req, res),
 );
 
 module.exports = router;

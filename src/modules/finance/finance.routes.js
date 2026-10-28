@@ -6,6 +6,7 @@ const controller = require("./finance.controller");
 router.use(auth, role(["admin"]));
 router.get("/dashboard", (req, res) => controller.dashboard(req, res));
 router.get("/intelligence", (req, res) => controller.intelligence(req, res));
+router.get("/ai-analysis", (req, res) => controller.aiAnalysis(req, res));
 router.post("/assistant", (req, res) => controller.assistant(req, res));
 router.get("/export", (req, res) => controller.export(req, res));
 router.post("/invoices", (req, res) => controller.createInvoice(req, res));

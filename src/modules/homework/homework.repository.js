@@ -82,6 +82,51 @@ class HomeworkRepository {
     });
   }
 
+  async findAcademicRecordByRollNumber(rollNumber) {
+    const student = await prisma.user.findFirst({
+      where: { rollNumber, role: "student" },
+      select: {
+        id: true,
+        name: true,
+        rollNumber: true,
+        className: true,
+        profilePhotoUrl: true,
+        enrollments: {
+          select: { course: { select: { id: true, title: true, description: true } } },
+        },
+      },
+    });
+
+    if (!student) return null;
+
+    const homework = await prisma.homework.findMany({
+      where: { course: { enrollments: { some: { studentId: student.id } } } },
+      include: {
+        teacher: { select: { name: true } },
+        course: { select: { id: true, title: true, description: true } },
+        attachments: { include: { file: true } },
+        submissions: {
+          where: { studentId: student.id },
+          include: this.submissionInclude(),
+        },
+      },
+      orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }],
+    });
+
+    const attendance = await prisma.attendance.findMany({
+      where: { studentId: student.id },
+      select: {
+        date: true,
+        status: true,
+        mode: true,
+        course: { select: { id: true, title: true, description: true } },
+      },
+      orderBy: { date: "desc" },
+    });
+
+    return { student, homework, attendance };
+  }
+
   findById(homeworkId) {
     return prisma.homework.findUnique({
       where: {

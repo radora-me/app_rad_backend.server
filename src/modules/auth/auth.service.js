@@ -1,16 +1,19 @@
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const repo = require("./auth.repository");
+const prisma = require("../../core/database/prisma");
 const jwtService = require("../../core/utils/jwt.utils");
 const redis = require("../../core/cache/redis");
 const { sendPasswordResetEmail } = require("../../shared/utils/send.reset.email");
 const { sendPasswordChangedEmail } = require("../../shared/utils/send.password.changed.email");
+const { uploadBuffer } = require("../../core/storage/cloudinary");
+const { resolveClassName, safeClassName } = require("../../shared/utils/display-labels");
 
 class AuthService {
   _toCoursePayload(course) {
     return {
       courseId: course.id,
-      className: course.title,
+      className: safeClassName(course.title),
       section: course.description || "",
       studentCount: course._count?.enrollments || 0,
     };
@@ -50,7 +53,7 @@ class AuthService {
     const normalizedIdentifier = identifier.trim().toLowerCase();
     const user = await repo.findByIdentifier(normalizedIdentifier);
 
-    if (!user || !["student", "teacher", "admin"].includes(user.role)) {
+    if (!user || !["student", "teacher", "admin", "librarian"].includes(user.role)) {
       throw new Error("Invalid credentials");
     }
 
@@ -66,7 +69,7 @@ class AuthService {
 
   async getCurrentUser(userId) {
     const user = await repo.findById(userId);
-    if (!user || !["student", "teacher", "admin"].includes(user.role)) {
+    if (!user || !["student", "teacher", "admin", "librarian"].includes(user.role)) {
       throw new Error("User not found");
     }
 
@@ -120,6 +123,25 @@ class AuthService {
     });
 
     return { message: "Teacher created", userId: user.id };
+  }
+
+  async createLibrarian({ name, email, password }, adminId) {
+    const existing = await repo.findByEmail(email.trim().toLowerCase());
+    if (existing) throw new Error("Email already exists");
+    const hashed = await bcrypt.hash(password, 12);
+    const user = await repo.create({ name: name.trim(), email: email.trim().toLowerCase(), password: hashed, role: "librarian" });
+    return { message: "Librarian created", userId: user.id };
+  }
+
+  async listLibrarians() {
+    return prisma.user.findMany({ where: { role: "librarian" }, select: { id: true, name: true, email: true, address: true, profilePhotoUrl: true, createdAt: true }, orderBy: { createdAt: "desc" } });
+  }
+
+  async deleteLibrarian(librarianId) {
+    const user = await prisma.user.findFirst({ where: { id: librarianId, role: "librarian" } });
+    if (!user) throw new Error("Librarian not found");
+    await prisma.user.delete({ where: { id: librarianId } });
+    return { message: "Librarian deleted" };
   }
 
   async assignTeacherClass({ teacherEmail, className, section }) {
@@ -188,11 +210,10 @@ class AuthService {
     }
 
     return {
-      id: student.id,
       name: student.name,
       email: student.email || null,
       rollNumber: student.rollNumber,
-      className: student.className || student.class || "",
+      className: resolveClassName(student),
       parentName: student.studentProfile?.parentName || null,
       parentPhone: student.studentProfile?.parentPhone || null,
       profilePhotoUrl: student.profilePhotoUrl || null,
@@ -234,6 +255,12 @@ class AuthService {
     return this._toTeacherPayload(teacher);
   }
 
+  async getOwnTeacherProfile(teacherId) {
+    const teacher = await repo.findTeacherById(teacherId);
+    if (!teacher) throw new Error("Teacher not found");
+    return this._toTeacherPayload(teacher, false);
+  }
+
   async updateTeacher(teacherId, { name, email, address }) {
     const teacher = await repo.findTeacherById(teacherId);
     if (!teacher) throw new Error("Teacher not found");
@@ -254,7 +281,7 @@ class AuthService {
   async getAdminProfile(adminId) {
     const admin = await repo.findAdminById(adminId);
     if (!admin) throw new Error("Admin not found");
-    return { id: admin.id, name: admin.name, email: admin.email, role: admin.role };
+    return { name: admin.name, email: admin.email, role: admin.role, profilePhotoUrl: admin.profilePhotoUrl || null };
   }
 
   async updateAdminProfile(adminId, { name, email }) {
@@ -270,19 +297,39 @@ class AuthService {
       ...(name && { name: name.trim() }),
       ...(email && { email: email.trim().toLowerCase() }),
     });
-    return { id: updated.id, name: updated.name, email: updated.email, role: updated.role };
+    return { name: updated.name, email: updated.email, role: updated.role, profilePhotoUrl: updated.profilePhotoUrl || null };
   }
 
-  _toTeacherPayload(teacher) {
+  async uploadOwnProfilePhoto(userId, role, file) {
+    if (!file) throw new Error("Profile photo is required");
+    if (!["teacher", "admin", "librarian"].includes(role)) throw new Error("Students cannot upload their own profile photo");
+    const user = await repo.findById(userId);
+    if (!user || user.role !== role) throw new Error("User not found");
+    const upload = await uploadBuffer(file.buffer, {
+      folder: "radora/profile-photos",
+      public_id: userId,
+      resource_type: "image",
+      overwrite: true,
+      invalidate: true,
+    });
+    const updated = await repo.updateProfilePhoto(userId, upload.secure_url);
+    return { profilePhotoUrl: updated.profilePhotoUrl };
+  }
+
+  _toTeacherPayload(teacher, exposeIds = true) {
     return {
-      id: teacher.id,
+      ...(exposeIds ? { id: teacher.id } : {}),
       name: teacher.name,
       email: teacher.email,
       address: teacher.address || "",
+      profilePhotoUrl: teacher.profilePhotoUrl || null,
       courses: (teacher.taughtCourses || []).map((c) => ({
-        id: c.id,
-        title: c.title,
+        ...(exposeIds ? { id: c.id } : {}),
+        title: safeClassName(c.title),
+        description: c.description || "",
         section: c.description || "",
+        studentCount: c._count?.enrollments || 0,
+        _count: { enrollments: c._count?.enrollments || 0 },
       })),
     };
   }
@@ -420,9 +467,10 @@ class AuthService {
         role: user.role,
         ...(user.email && { email: user.email }),
         ...(user.rollNumber && { rollNumber: user.rollNumber }),
-        ...(user.className && { className: user.className }),
+        ...(user.className && { className: safeClassName(user.className) }),
         ...(user.profilePhotoUrl && { profilePhotoUrl: user.profilePhotoUrl }),
         ...(user.role === "teacher" && { isSubjectTeacher: Boolean(user.isSubjectTeacher) }),
+      ...(user.role === "librarian" && { isLibrarian: true }),
       },
     };
   }

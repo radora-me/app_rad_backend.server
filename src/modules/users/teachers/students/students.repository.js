@@ -89,7 +89,11 @@ class TeacherStudentsRepository {
     });
   }
 
-  async syncStudentCourses({ studentId, teacherId, courseIds }) {
+  async updateStudentPhoto(studentId, profilePhotoUrl) {
+    return prisma.user.update({ where: { id: studentId }, data: { profilePhotoUrl } });
+  }
+
+  async syncStudentCourses({ studentId, teacherId, courseIds, role = "teacher" }) {
     const safeCourseIds = Array.isArray(courseIds) ? courseIds : [];
 
     if (safeCourseIds.length !== 1) {
@@ -100,7 +104,7 @@ class TeacherStudentsRepository {
       const teacherCourses = await tx.course.findMany({
         where: {
           id: { in: safeCourseIds },
-          teacherId,
+          ...(role === "admin" ? {} : { teacherId }),
         },
         select: { id: true },
       });
@@ -133,7 +137,7 @@ class TeacherStudentsRepository {
         (enrollment) => enrollment.courseId !== selectedCourse.id,
       );
 
-      if (hasDifferentEnrollment) {
+      if (hasDifferentEnrollment && role !== "admin") {
         throw new Error(
           "Student is already assigned to a class and cannot be added to another one.",
         );
@@ -144,14 +148,16 @@ class TeacherStudentsRepository {
       const teacherCourseIds = teacherCourses.map((course) => course.id);
 
       await tx.enrollment.deleteMany({
-        where: {
-          studentId,
-          courseId: {
-            in: teacherCourseIds.filter(
-              (courseId) => !safeCourseIds.includes(courseId),
-            ),
-          },
-        },
+        where: role === "admin"
+          ? { studentId, courseId: { notIn: safeCourseIds } }
+          : {
+              studentId,
+              courseId: {
+                in: teacherCourseIds.filter(
+                  (courseId) => !safeCourseIds.includes(courseId),
+                ),
+              },
+            },
       });
 
       if (safeCourseIds.length > 0) {

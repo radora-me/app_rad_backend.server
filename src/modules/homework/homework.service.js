@@ -9,6 +9,7 @@ const {
 const prisma = require("../../core/database/prisma");
 const { isAllowedAttachmentType } = require("../../core/storage/fileTypePolicy");
 const { sendHomeworkEmail } = require("../../shared/utils/send.homework.email");
+const { resolveClassName, safeClassName } = require("../../shared/utils/display-labels");
 
 const MAX_ATTACHMENTS = 10;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -38,7 +39,7 @@ class HomeworkService {
           to: parentEmail,
           parentName: student.studentProfile?.parentName || null,
           studentName: student.name,
-          className: student.className || '',
+          className: safeClassName(student.className, ""),
           homeworkTitle: homework.title,
           description: homework.description || null,
           instructions: homework.instructions || null,
@@ -308,6 +309,64 @@ class HomeworkService {
     return homework.map((item) => this._toStudentPayload(item, studentId));
   }
 
+  async getAcademicRecordByRollNumber(rollNumber) {
+    const record = await repo.findAcademicRecordByRollNumber(String(rollNumber || "").trim());
+    if (!record) throw new Error("Student not found");
+
+    const assignments = record.homework.map((item) => {
+      const submission = item.submissions?.[0] || null;
+      const submissionPayload = submission ? this._toSubmissionPayload(submission) : null;
+      if (submissionPayload) {
+        delete submissionPayload.studentId;
+        delete submissionPayload.student;
+      }
+      const percentage = submission?.marks !== null && submission?.marks !== undefined && item.totalMarks
+        ? Number(((submission.marks / item.totalMarks) * 100).toFixed(1))
+        : null;
+
+      return {
+        ...this._toPayload(item),
+        teacherName: item.teacher?.name || "",
+        submission: submissionPayload,
+        grade: submission?.marks !== null && submission?.marks !== undefined
+          ? { marks: submission.marks, totalMarks: item.totalMarks, percentage }
+          : null,
+      };
+    });
+
+    const graded = assignments.filter((item) => item.grade);
+    const submitted = assignments.filter((item) => item.submission);
+    return {
+      student: {
+        name: record.student.name,
+        rollNumber: record.student.rollNumber,
+        className: resolveClassName(record.student),
+        profilePhotoUrl: record.student.profilePhotoUrl || null,
+        courses: record.student.enrollments.map(({ course }) => ({
+          id: course.id,
+          title: safeClassName(course.title),
+          description: course.description,
+        })),
+      },
+      attendance: record.attendance.map((item) => ({
+        date: item.date,
+        status: item.status,
+        mode: item.mode,
+        course: item.course,
+      })),
+      assignments,
+      summary: {
+        total: assignments.length,
+        submitted: submitted.length,
+        pending: assignments.length - submitted.length,
+        graded: graded.length,
+        averagePercentage: graded.length
+          ? Number((graded.reduce((sum, item) => sum + (item.grade.percentage || 0), 0) / graded.length).toFixed(1))
+          : 0,
+      },
+    };
+  }
+
   async getHomeworkForTeacher(teacherId, homeworkId) {
     const homework = await repo.findAccessibleForTeacher(teacherId, homeworkId);
 
@@ -553,7 +612,7 @@ class HomeworkService {
           id: student.id,
           name: student.name,
           rollNumber: student.rollNumber,
-          className: student.className,
+          className: safeClassName(student.className, ""),
           profilePhotoUrl: student.profilePhotoUrl,
         },
         status: submission?.status || "PENDING",
@@ -789,7 +848,7 @@ class HomeworkService {
             id: submission.student.id,
             name: submission.student.name,
             rollNumber: submission.student.rollNumber,
-            className: submission.student.className,
+            className: safeClassName(submission.student.className, ""),
             profilePhotoUrl: submission.student.profilePhotoUrl,
           }
         : undefined,

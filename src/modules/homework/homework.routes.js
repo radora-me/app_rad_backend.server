@@ -13,6 +13,10 @@ router.get("/teacher", auth, role(["teacher"]), (req, res) =>
   controller.listForTeacher(req, res),
 );
 
+router.get("/admin/student/:rollNumber", auth, role(["admin"]), (req, res) =>
+  controller.getAcademicRecordByRollNumber(req, res),
+);
+
 router.get("/teacher/:homeworkId", auth, role(["teacher"]), (req, res) =>
   controller.getHomeworkForTeacher(req, res),
 );

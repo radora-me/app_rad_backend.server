@@ -245,7 +245,9 @@ class AuthController {
 
   async getTeacher(req, res) {
     try {
-      const result = await service.getTeacher(req.params.teacherId);
+      const result = req.user?.role === "teacher" && req.user.id === req.params.teacherId
+        ? await service.getOwnTeacherProfile(req.params.teacherId)
+        : await service.getTeacher(req.params.teacherId);
       res.json(result);
     } catch (err) {
       const status = err.message === "Teacher not found" ? 404 : 400;
@@ -283,6 +285,48 @@ class AuthController {
     } catch (err) {
       res.status(400).json({ error: err.message });
     }
+  }
+
+  async uploadOwnProfilePhoto(req, res) {
+    try {
+      const result = await service.uploadOwnProfilePhoto(req.user.id, req.user.role, req.file);
+      res.json(result);
+    } catch (err) {
+      const status = /required|cannot upload|not found/i.test(err.message) ? 400 : 502;
+      res.status(status).json({ error: err.message });
+    }
+  }
+
+  async createLibrarian(req, res) {
+    try {
+      const result = await service.createLibrarian(req.body, req.user.id);
+      res.status(201).json(result);
+    } catch (err) {
+      res.status(err.message === "Email already exists" ? 409 : 400).json({ error: err.message });
+    }
+  }
+
+  async listLibrarians(req, res) {
+    try { res.json(await service.listLibrarians()); } catch (err) { res.status(400).json({ error: err.message }); }
+  }
+
+  async deleteLibrarian(req, res) {
+    try { res.json(await service.deleteLibrarian(req.params.librarianId)); } catch (err) { res.status(err.message === "Librarian not found" ? 404 : 400).json({ error: err.message }); }
+  }
+
+  async getLibrarianProfile(req, res) {
+    try {
+      const user = await service.getCurrentUser(req.user.id);
+      res.json(user);
+    } catch (err) { res.status(400).json({ error: err.message }); }
+  }
+
+  async updateLibrarianProfile(req, res) {
+    try {
+      const prisma = require("../../core/database/prisma");
+      const updated = await prisma.user.update({ where: { id: req.user.id }, data: { ...(req.body.name && { name: req.body.name.trim() }), ...(req.body.address !== undefined && { address: req.body.address }) }, select: { id: true, name: true, email: true, address: true, profilePhotoUrl: true, role: true } });
+      res.json(updated);
+    } catch (err) { res.status(400).json({ error: err.message }); }
   }
 
   async resetPassword(req, res) {

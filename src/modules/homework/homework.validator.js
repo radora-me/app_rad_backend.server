@@ -1,5 +1,12 @@
 const Joi = require("joi");
 
+const futureDate = Joi.date().iso().custom((value, helpers) => {
+  if (value.getTime() <= Date.now()) return helpers.error("date.future");
+  return value;
+}).messages({
+  "date.future": "Due date must be in the future",
+});
+
 const attachmentSchema = Joi.object({
   fileName: Joi.string().trim().min(1).max(180).required(),
 
@@ -19,7 +26,7 @@ exports.createHomeworkSchema = Joi.object({
 
   instructions: Joi.string().trim().max(10000).allow("").optional(),
 
-  dueAt: Joi.date().iso().allow(null).optional(),
+  dueAt: futureDate.allow(null).optional(),
 
   allowLateSubmission: Joi.boolean().optional(),
 
@@ -37,7 +44,7 @@ exports.updateHomeworkSchema = Joi.object({
 
   instructions: Joi.string().trim().max(10000).allow(""),
 
-  dueAt: Joi.date().iso().allow(null),
+  dueAt: futureDate.allow(null),
 
   allowLateSubmission: Joi.boolean(),
 

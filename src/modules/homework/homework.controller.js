@@ -99,6 +99,15 @@ class HomeworkController {
     }
   }
 
+  async getAcademicRecordByRollNumber(req, res) {
+    try {
+      const result = await service.getAcademicRecordByRollNumber(req.params.rollNumber);
+      return res.json(result);
+    } catch (err) {
+      return this._handleError(res, err);
+    }
+  }
+
   async getHomeworkForTeacher(req, res) {
     try {
       if (!req.params.homeworkId) {
@@ -396,6 +405,7 @@ class HomeworkController {
 
     switch (err.message) {
       case "Homework not found":
+      case "Student not found":
       case "Attachment not found":
       case "Attachment file not found":
         status = 404;

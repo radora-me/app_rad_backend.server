@@ -54,6 +54,7 @@ class TeacherStudentsController {
         req.user.id,
         req.params.rollNumber,
         req.body,
+        req.user.role,
       );
       res.json(result);
     } catch (err) {
@@ -90,6 +91,16 @@ class TeacherStudentsController {
       res.json(result);
     } catch (err) {
       const status = err.message === "Student not found" ? 404 : 400;
+      res.status(status).json({ error: err.message });
+    }
+  }
+
+  async uploadPhoto(req, res) {
+    try {
+      const result = await service.uploadStudentPhoto(req.user.id, req.params.rollNumber, req.file, req.user.role);
+      res.json(result);
+    } catch (err) {
+      const status = /required/i.test(err.message) ? 400 : err.message === "Student not found" ? 404 : 502;
       res.status(status).json({ error: err.message });
     }
   }

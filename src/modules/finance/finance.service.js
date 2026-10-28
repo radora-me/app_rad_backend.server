@@ -138,6 +138,8 @@ async function createInvoice(userId, input) {
   const lateFee = money(input.lateFee);
   if (subtotal <= 0) throw new Error("Invoice subtotal must be greater than zero");
   const total = Math.max(0, subtotal - discount + lateFee);
+  const dueDate = toDate(input.dueDate, new Date(Date.now() + 7 * 86400000));
+  if (dueDate.getTime() <= Date.now()) throw new Error("Invoice due date must be in the future");
   return prisma.$transaction(async (tx) => {
     const studentLookup = String(input.studentRollNumber || input.studentId || "").trim();
     if (!studentLookup) throw new Error("Student roll number or student ID is required");
@@ -148,7 +150,7 @@ async function createInvoice(userId, input) {
     if (!student) throw new Error(`Student not found for identifier ${studentLookup}`);
     const invoice = await tx.feeInvoice.create({ data: {
       invoiceNumber: input.invoiceNumber || id("INV"), studentId: student.id,
-      assignmentId: input.assignmentId || null, dueDate: toDate(input.dueDate, new Date(Date.now() + 7 * 86400000)),
+      assignmentId: input.assignmentId || null, dueDate,
       subtotal, discount, lateFee, total, status: "ISSUED", notes: input.notes || null, createdById: userId,
     } });
     const accounts = await ensureSystemAccounts(tx);

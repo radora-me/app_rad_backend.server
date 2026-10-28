@@ -8,6 +8,10 @@ router.get("/context", auth, role(["student"]), (req, res) =>
   controller.context(req, res),
 );
 
+router.post("/chat/stream", auth, role(["student"]), (req, res) =>
+  controller.stream(req, res),
+);
+
 router.post("/chat", auth, role(["student"]), (req, res) =>
   controller.chat(req, res),
 );

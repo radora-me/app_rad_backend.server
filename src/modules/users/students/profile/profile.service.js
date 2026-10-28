@@ -1,6 +1,7 @@
 const repo = require("./profile.repository");
 
 const attendanceRepo = require("../attendance/attendance.repository");
+const { resolveClassName, safeClassName } = require("../../../../shared/utils/display-labels");
 
 const {
   buildAttendanceSummary,
@@ -31,17 +32,15 @@ class StudentProfileService {
     const sp = user.studentProfile || {};
 
     return {
-      id: user.id,
       name: user.name,
       rollNumber: user.rollNumber,
-      className: user.className || user.enrollments?.[0]?.course?.title || "",
+      className: resolveClassName(user),
       section: user.section || user.enrollments?.[0]?.course?.description || "",
       profilePhotoUrl: user.profilePhotoUrl || null,
       attendancePercentage: percentage,
       streak,
       courses: (user.enrollments || []).map((enrollment) => ({
-        id: enrollment.course.id,
-        title: enrollment.course.title,
+        title: safeClassName(enrollment.course.title),
         description: enrollment.course.description,
       })),
       address: sp.address || null,

@@ -1,4 +1,5 @@
 const service = require("./finance.service");
+const { analyzeFinance } = require("../../ai/finance-analysis.service");
 
 const normalize = (value) => {
   if (value instanceof Date) return value.toISOString();
@@ -81,6 +82,14 @@ class FinanceController {
     try {
       const snapshot = await service.dashboard();
       return res.json({ generatedAt: snapshot.asOf, recommendations: snapshot.recommendations, forecast: snapshot.trend.map((point, index, series) => ({ month: point.month, projectedCollections: Math.round((point.income || (series[index - 1]?.income || 0)) * 1.03), projectedExpenses: Math.round((point.expenses || (series[index - 1]?.expenses || 0)) * 1.02) })), guardrail: "AI and analytics are read-only. Accounting records can only be changed through approved finance transactions." });
+    } catch (err) { return this._error(res, err); }
+  }
+
+  async aiAnalysis(req, res) {
+    try {
+      const snapshot = await service.dashboard();
+      const analysis = await analyzeFinance(snapshot);
+      return res.json({ generatedAt: snapshot.asOf, analysis, kpis: snapshot.kpis, trend: snapshot.trend });
     } catch (err) { return this._error(res, err); }
   }
 

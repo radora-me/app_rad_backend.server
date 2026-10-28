@@ -10,7 +10,7 @@ router.get("/", auth, role(["teacher", "admin"]), (req, res) =>
 router.get("/by-roll/:rollNumber", auth, role(["teacher", "admin"]), (req, res) =>
   controller.findByRollNumber(req, res),
 );
-router.put("/by-roll/:rollNumber", auth, role(["teacher"]), (req, res) =>
+router.put("/by-roll/:rollNumber", auth, role(["teacher", "admin"]), (req, res) =>
   controller.upsert(req, res),
 );
 router.patch("/by-roll/:rollNumber/profile", auth, role(["teacher", "admin"]), (req, res) =>
@@ -18,6 +18,9 @@ router.patch("/by-roll/:rollNumber/profile", auth, role(["teacher", "admin"]), (
 );
 router.get("/by-roll/:rollNumber/profile", auth, role(["teacher", "admin"]), (req, res) =>
   controller.getFullProfile(req, res),
+);
+router.post("/by-roll/:rollNumber/profile-photo", auth, role(["teacher", "admin"]), (req, res) =>
+  controller.uploadPhoto(req, res),
 );
 
 module.exports = router;

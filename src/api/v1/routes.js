@@ -12,7 +12,12 @@ const noticeRoutes = require("../../modules/notice/notice.routes");
 const timetableRoutes = require("../../modules/timetable/timetable.routes");
 const notificationRoutes = require("../../modules/notifications/notifications.routes");
 const financeRoutes = require("../../modules/finance/finance.routes");
+const eventsRoutes = require("../../modules/events/events.routes");
+const libraryRoutes = require("../../modules/library/library.routes");
 const paymentRoutes = require("../../modules/payments/payments.routes");
+const adminDashboardRoutes = require("../../modules/admin/dashboard/dashboard.routes");
+const proctoredTestRoutes = require("../../modules/proctored-tests/proctored-tests.routes");
+const leaderboardRoutes = require("../../modules/leaderboard/leaderboard.routes");
 
 router.use("/auth", authRoutes);
 router.use("/teacher/attendance", teacherAttendanceRoutes);
@@ -26,6 +31,11 @@ router.use("/notices", noticeRoutes);
 router.use("/timetables", timetableRoutes);
 router.use("/notifications", notificationRoutes);
 router.use("/finance", financeRoutes);
+router.use("/events", eventsRoutes);
+router.use("/library", libraryRoutes);
+router.use("/admin/dashboard", adminDashboardRoutes);
+router.use("/tests", proctoredTestRoutes);
+router.use("/leaderboard", leaderboardRoutes);
 router.use("/", paymentRoutes);
 
 console.log("Main routes loaded");

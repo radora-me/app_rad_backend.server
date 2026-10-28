@@ -10,20 +10,26 @@ class AuthRepository {
   }
 
   async findByRollNumber(rollNumber) {
-    return prisma.user.findUnique({ where: { rollNumber }, include: { studentProfile: true } });
+    return prisma.user.findUnique({
+      where: { rollNumber },
+      include: {
+        studentProfile: true,
+        enrollments: { include: { course: true } },
+      },
+    });
   }
 
   async findByIdentifier(identifier) {
     if (identifier.includes("@")) {
       return prisma.user.findUnique({
         where: { email: identifier },
-        include: { studentProfile: true },
+        include: { studentProfile: true, enrollments: { include: { course: true } } },
       });
     }
 
     return prisma.user.findUnique({
       where: { rollNumber: identifier },
-      include: { studentProfile: true },
+      include: { studentProfile: true, enrollments: { include: { course: true } } },
     });
   }
 
@@ -128,21 +134,37 @@ class AuthRepository {
     return prisma.user.update({
       where: { id: userId },
       data,
-      include: { taughtCourses: true },
+      include: {
+        taughtCourses: {
+          include: { _count: { select: { enrollments: true } } },
+        },
+      },
     });
+  }
+
+  async updateProfilePhoto(userId, profilePhotoUrl) {
+    return prisma.user.update({ where: { id: userId }, data: { profilePhotoUrl } });
   }
 
   async findTeacherById(id) {
     return prisma.user.findFirst({
       where: { id, role: "teacher" },
-      include: { taughtCourses: true },
+      include: {
+        taughtCourses: {
+          include: { _count: { select: { enrollments: true } } },
+        },
+      },
     });
   }
 
   async listAllTeachers() {
     return prisma.user.findMany({
       where: { role: "teacher" },
-      include: { taughtCourses: true },
+      include: {
+        taughtCourses: {
+          include: { _count: { select: { enrollments: true } } },
+        },
+      },
       orderBy: { createdAt: "desc" },
     });
   }

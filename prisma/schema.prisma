@@ -12,6 +12,21 @@ enum Role {
   student
   teacher
   admin
+  librarian
+}
+
+enum BookStatus {
+  AVAILABLE
+  ISSUED
+  LOST
+  DAMAGED
+}
+
+enum IssueStatus {
+  ISSUED
+  RETURNED
+  OVERDUE
+  LOST
 }
 
 enum AttendanceStatus {
@@ -42,6 +57,26 @@ enum SubmissionStatus {
   SUBMITTED
   LATE
   GRADED
+}
+
+enum ProctoredTestStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum ProctoredAttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  AUTO_SUBMITTED
+  GRADED
+}
+
+enum EventStatus {
+  UPCOMING
+  ONGOING
+  COMPLETED
+  CANCELLED
 }
 
 enum FinanceAccountType {
@@ -160,8 +195,15 @@ model User {
   enrollments         Enrollment[]          @relation("StudentEnrollments")
   attendanceRecords   Attendance[]          @relation("StudentAttendance")
   sentChatMessages    ClassroomMessage[]    @relation("ClassroomMessageSender")
-  createdHomework     Homework[]            @relation("HomeworkTeacher")
-  createdNotices      Notice[]              @relation("NoticeCreator")
+  createdHomework       Homework[]            @relation("HomeworkTeacher")
+  createdNotices        Notice[]              @relation("NoticeCreator")
+  createdEvents         Event[]               @relation("EventCreator")
+  addedBooks            Book[]                @relation("BookAddedBy")
+  issuedBooks           BookIssue[]           @relation("BookIssuedBy")
+  borrowedBooks         BookIssue[]           @relation("BookBorrowedBy")
+  createdProctoredTests ProctoredTest[]       @relation("ProctoredTestTeacher")
+  proctoredAttempts     ProctoredAttempt[]    @relation("ProctoredTestStudent")
+  gradedProctoredTests  ProctoredAttempt[]    @relation("ProctoredTestGrader")
 
   financeStudentAssignments FinanceStudentFeeAssignment[] @relation("FinanceStudent")
   financeCreatedInvoices    FeeInvoice[]                  @relation("FinanceInvoiceCreatedBy")
@@ -257,6 +299,7 @@ model Course {
   attendance           Attendance[]
   chatMessages         ClassroomMessage[]
   homework             Homework[]
+  proctoredTests       ProctoredTest[]
   timetableAssignments TimetableAssignment[]
   timetableEntries     TimetableEntry[]
 
@@ -468,6 +511,7 @@ model File {
   homeworkAttachments   HomeworkAttachment[]
   submissionAttachments SubmissionAttachment[]
   noticeAttachments     NoticeAttachment[]
+  eventMedia            EventMedia[]
   isDeleted             Boolean                @default(false)
 
   createdAt DateTime @default(now())
@@ -475,6 +519,79 @@ model File {
   checksum  String?
 
   @@index([uploadedById])
+}
+
+model Event {
+  id          String      @id @default(uuid())
+  title       String
+  description String?
+  location    String?
+  startDate   DateTime
+  endDate     DateTime?
+  status      EventStatus @default(UPCOMING)
+  createdById String
+  createdBy   User        @relation("EventCreator", fields: [createdById], references: [id])
+  media       EventMedia[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([startDate, status])
+  @@index([createdById])
+}
+
+model EventMedia {
+  id        String   @id @default(uuid())
+  eventId   String
+  fileId    String
+  caption   String?
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  file      File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([eventId, fileId])
+  @@index([eventId])
+}
+
+model Book {
+  id              String      @id @default(uuid())
+  bookId          String      @unique
+  title           String
+  author          String?
+  publisher       String?
+  isbn            String?
+  category        String?
+  totalCopies     Int         @default(1)
+  availableCopies Int         @default(1)
+  status          BookStatus  @default(AVAILABLE)
+  qrCode          String?
+  addedById       String
+  addedBy         User        @relation("BookAddedBy", fields: [addedById], references: [id])
+  issues          BookIssue[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([status])
+}
+
+model BookIssue {
+  id         String      @id @default(uuid())
+  bookId     String
+  studentId  String
+  issuedById String
+  issuedAt   DateTime    @default(now())
+  dueDate    DateTime
+  returnedAt DateTime?
+  status     IssueStatus @default(ISSUED)
+  notes      String?
+  book       Book        @relation(fields: [bookId], references: [id])
+  student    User        @relation("BookBorrowedBy", fields: [studentId], references: [id])
+  issuedBy   User        @relation("BookIssuedBy", fields: [issuedById], references: [id])
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([bookId])
+  @@index([studentId])
+  @@index([status])
 }
 
 model Holiday {
@@ -921,4 +1038,102 @@ model FinancePayrollIntegration {
   syncedAt     DateTime @default(now())
   status       String   @default("SYNCED")
   createdAt    DateTime @default(now())
+}
+
+model ProctoredTest {
+  id              String              @id @default(uuid())
+  title           String
+  description     String?
+  instructions    String?
+  courseId        String
+  teacherId       String
+  durationMinutes Int                 @default(30)
+  availableFrom   DateTime?
+  dueAt           DateTime
+  status          ProctoredTestStatus @default(DRAFT)
+  resultPublished Boolean             @default(false)
+  maxViolations   Int                 @default(3)
+
+  course    Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  teacher   User                @relation("ProctoredTestTeacher", fields: [teacherId], references: [id])
+  questions ProctoredQuestion[]
+  attempts  ProctoredAttempt[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([courseId, status])
+  @@index([teacherId, createdAt])
+  @@index([dueAt])
+}
+
+model ProctoredQuestion {
+  id            String            @id @default(uuid())
+  testId        String
+  order         Int
+  prompt        String
+  options       Json
+  correctOption String
+  marks         Int               @default(1)
+
+  test    ProctoredTest    @relation(fields: [testId], references: [id], onDelete: Cascade)
+  answers ProctoredAnswer[]
+
+  @@unique([testId, order])
+  @@index([testId])
+}
+
+model ProctoredAttempt {
+  id              String                 @id @default(uuid())
+  testId          String
+  studentId       String
+  startedAt       DateTime               @default(now())
+  expiresAt       DateTime
+  submittedAt     DateTime?
+  autoSubmittedAt DateTime?
+  status          ProctoredAttemptStatus @default(IN_PROGRESS)
+  score           Int?
+  teacherMarks    Int?
+  teacherFeedback String?
+  gradedAt        DateTime?
+  gradedById      String?
+  violationCount  Int                    @default(0)
+
+  test     ProctoredTest     @relation(fields: [testId], references: [id], onDelete: Cascade)
+  student  User              @relation("ProctoredTestStudent", fields: [studentId], references: [id])
+  gradedBy User?             @relation("ProctoredTestGrader", fields: [gradedById], references: [id])
+  answers  ProctoredAnswer[]
+  events   ProctoredEvent[]
+
+  @@unique([testId, studentId])
+  @@index([studentId, status])
+  @@index([testId, status])
+}
+
+model ProctoredAnswer {
+  id             String            @id @default(uuid())
+  attemptId      String
+  questionId     String
+  selectedOption String?
+  isCorrect      Boolean?
+  marksAwarded   Int?
+  answeredAt     DateTime          @updatedAt
+
+  attempt  ProctoredAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question ProctoredQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@index([questionId])
+}
+
+model ProctoredEvent {
+  id         String           @id @default(uuid())
+  attemptId  String
+  type       String
+  metadata   Json?
+  occurredAt DateTime         @default(now())
+
+  attempt ProctoredAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@index([attemptId, occurredAt])
 }
