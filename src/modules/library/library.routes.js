@@ -3,9 +3,12 @@ const auth = require("../../shared/middlewares/auth.middleware");
 const role = require("../../shared/middlewares/role.middleware");
 const controller = require("./library.controller");
 
-// Admin overview
-router.get("/admin/overview", auth, role(["admin"]), (req, res) => controller.adminOverview(req, res));
-router.get("/admin/issues", auth, role(["admin"]), (req, res) => controller.listIssues(req, res));
+// Admin + librarian overview
+router.get("/admin/overview", auth, role(["admin", "librarian"]), (req, res) => controller.adminOverview(req, res));
+router.get("/admin/issues", auth, role(["admin", "librarian"]), (req, res) => controller.listIssues(req, res));
+
+// Student — own issued books
+router.get("/student/my-issues", auth, role(["student"]), (req, res) => controller.studentMyIssues(req, res));
 
 // Librarian + admin — books
 router.get("/books", auth, role(["librarian", "admin"]), (req, res) => controller.listBooks(req, res));

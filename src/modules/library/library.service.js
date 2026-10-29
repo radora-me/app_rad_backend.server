@@ -180,7 +180,26 @@ async function returnBook(librarianId, issueId, input = {}) {
   });
 }
 
-// ── Admin overview ────────────────────────────────────────────────────────────
+// ── Student — my issued books ─────────────────────────────────────────────────
+async function studentMyIssues(userId) {
+  const student = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+  if (!student) throw new Error("Student not found");
+
+  const issues = await prisma.bookIssue.findMany({
+    where: { studentId: userId },
+    include: ISSUE_INCLUDE,
+    orderBy: { issuedAt: "desc" },
+    take: 100,
+  });
+
+  const currentlyIssued = issues.filter((i) => i.status === "ISSUED").length;
+  const overdueCount = issues.filter((i) => i.status === "ISSUED" && new Date(i.dueDate) < new Date()).length;
+  const totalReturned = issues.filter((i) => i.status === "RETURNED").length;
+
+  return { currentlyIssued, overdueCount, totalReturned, issues };
+}
+
+// ── Admin / Librarian overview ────────────────────────────────────────────────
 async function adminOverview() {
   const [totalBooks, totalIssued, overdueCount, recentIssues] = await Promise.all([
     prisma.book.count(),
@@ -191,4 +210,4 @@ async function adminOverview() {
   return { totalBooks, totalIssued, overdueCount, recentIssues };
 }
 
-module.exports = { listBooks, getBook, getBookByQR, addBook, regenerateQR, updateBook, deleteBook, listIssues, issueBook, returnBook, adminOverview };
+module.exports = { listBooks, getBook, getBookByQR, addBook, regenerateQR, updateBook, deleteBook, listIssues, issueBook, returnBook, adminOverview, studentMyIssues };

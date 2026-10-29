@@ -12,6 +12,7 @@ class LibraryController {
   async issueBook(req, res) { return this._run(res, () => service.issueBook(req.user.id, req.body), 201); }
   async returnBook(req, res) { return this._run(res, () => service.returnBook(req.user.id, req.params.issueId, req.body)); }
   async adminOverview(req, res) { return this._run(res, () => service.adminOverview()); }
+  async studentMyIssues(req, res) { return this._run(res, () => service.studentMyIssues(req.user.id)); }
 
   _run(res, action, status = 200) {
     return Promise.resolve().then(action)
