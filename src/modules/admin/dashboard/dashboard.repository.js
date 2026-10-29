@@ -14,6 +14,7 @@ class AdminDashboardRepository {
       holidays,
       recentHomework,
       recentAttendance,
+      upcomingEvents,
     ] = await Promise.all([
       prisma.user.count({ where: { role: "student" } }),
       prisma.user.count({ where: { role: "teacher" } }),
@@ -50,6 +51,12 @@ class AdminDashboardRepository {
         orderBy: { createdAt: "desc" },
         take: 8,
       }),
+      prisma.event.findMany({
+        where: { status: "UPCOMING" },
+        select: { id: true, title: true, description: true, location: true, startDate: true, endDate: true, status: true },
+        orderBy: { startDate: "asc" },
+        take: 10,
+      }),
     ]);
 
     const markerIds = [...new Set(recentAttendance.map((item) => item.markedBy).filter(Boolean))];
@@ -70,6 +77,7 @@ class AdminDashboardRepository {
       recentHomework,
       recentAttendance,
       markers,
+      upcomingEvents,
     };
   }
 }

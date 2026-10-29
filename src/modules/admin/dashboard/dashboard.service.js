@@ -71,6 +71,7 @@ class AdminDashboardService {
     const upcomingEvents = [
       ...data.holidays.map((item) => ({ id: item.id, title: item.title, date: item.date, type: "holiday", description: "School holiday" })),
       ...data.upcomingHomework.map((item) => ({ id: item.id, title: item.title, date: item.dueAt, type: "deadline", description: `${item.course.title}${item.course.description ? ` / ${item.course.description}` : ""}` })),
+      ...(data.upcomingEvents || []).map((item) => ({ id: item.id, title: item.title, date: item.startDate, type: "event", description: item.description || (item.location ? `📍 ${item.location}` : "Upcoming event") })),
     ].sort((left, right) => new Date(left.date).getTime() - new Date(right.date).getTime()).slice(0, 8);
 
     const markerMap = new Map(data.markers.map((marker) => [marker.id, marker.name]));

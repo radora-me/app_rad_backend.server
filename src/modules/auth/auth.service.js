@@ -43,7 +43,8 @@ class AuthService {
     if (!user || user.role !== "student")
       throw new Error("Invalid credentials");
 
-    const match = await bcrypt.compare(password, user.password);
+    const trimmedPassword = (password || "").replace(/^\s+|\s+$/g, "");
+    const match = await bcrypt.compare(trimmedPassword, user.password);
     if (!match) throw new Error("Invalid credentials");
 
     return this._issueTokens(user);
@@ -57,7 +58,8 @@ class AuthService {
       throw new Error("Invalid credentials");
     }
 
-    const match = await bcrypt.compare(password, user.password);
+    const trimmedPassword = (password || "").replace(/^\s+|\s+$/g, "");
+    const match = await bcrypt.compare(trimmedPassword, user.password);
     if (!match) throw new Error("Invalid credentials");
 
     if (user.role === "teacher") {
@@ -68,12 +70,19 @@ class AuthService {
   }
 
   async getCurrentUser(userId) {
+    // Try Redis cache first (5 min TTL)
+    const cacheKey = `user_profile:${userId}`;
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      try { return JSON.parse(cached); } catch { /* fall through to DB */ }
+    }
+
     const user = await repo.findById(userId);
     if (!user || !["student", "teacher", "admin", "librarian"].includes(user.role)) {
       throw new Error("User not found");
     }
 
-    return {
+    const profile = {
       id: user.id,
       name: user.name,
       email: user.email || null,
@@ -81,6 +90,10 @@ class AuthService {
       role: user.role,
       profilePhotoUrl: user.profilePhotoUrl || null,
     };
+
+    // Cache for 5 minutes
+    await redis.set(cacheKey, JSON.stringify(profile), "EX", 300);
+    return profile;
   }
 
   async teacherLogin({ email, password }) {
@@ -88,7 +101,8 @@ class AuthService {
     if (!user || !["teacher", "admin"].includes(user.role))
       throw new Error("Invalid credentials");
 
-    const match = await bcrypt.compare(password, user.password);
+    const trimmedPassword = (password || "").replace(/^\s+|\s+$/g, "");
+    const match = await bcrypt.compare(trimmedPassword, user.password);
     if (!match) throw new Error("Invalid credentials");
 
     user.isSubjectTeacher = !(await repo.hasOwnedCourses(user.id));
@@ -275,6 +289,7 @@ class AuthService {
       ...(email && { email: email.trim().toLowerCase() }),
       ...(address !== undefined && { address: address.trim() }),
     });
+    await redis.del(`user_profile:${teacherId}`);
     return this._toTeacherPayload(updated);
   }
 
@@ -297,6 +312,7 @@ class AuthService {
       ...(name && { name: name.trim() }),
       ...(email && { email: email.trim().toLowerCase() }),
     });
+    await redis.del(`user_profile:${adminId}`);
     return { name: updated.name, email: updated.email, role: updated.role, profilePhotoUrl: updated.profilePhotoUrl || null };
   }
 
@@ -313,6 +329,7 @@ class AuthService {
       invalidate: true,
     });
     const updated = await repo.updateProfilePhoto(userId, upload.secure_url);
+    await redis.del(`user_profile:${userId}`);
     return { profilePhotoUrl: updated.profilePhotoUrl };
   }
 
@@ -348,6 +365,7 @@ class AuthService {
 
   async logout(userId) {
     await redis.del(`refresh:${userId}`);
+    await redis.del(`user_profile:${userId}`);
     return { message: "Logged out successfully" };
   }
 
