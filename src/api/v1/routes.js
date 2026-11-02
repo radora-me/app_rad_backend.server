@@ -1,5 +1,6 @@
 const router = require("express").Router();
 
+const enquiriesRoutes = require("../../modules/enquiries/enquiries.routes");
 const authRoutes = require("../../modules/auth/auth.routes");
 const teacherAttendanceRoutes = require("../../modules/users/teachers/attendance/attendance.routes");
 const teacherStudentRoutes = require("../../modules/users/teachers/students/students.routes");
@@ -19,6 +20,7 @@ const adminDashboardRoutes = require("../../modules/admin/dashboard/dashboard.ro
 const proctoredTestRoutes = require("../../modules/proctored-tests/proctored-tests.routes");
 const leaderboardRoutes = require("../../modules/leaderboard/leaderboard.routes");
 
+router.use("/enquiries", enquiriesRoutes);
 router.use("/auth", authRoutes);
 router.use("/teacher/attendance", teacherAttendanceRoutes);
 router.use("/teacher/students", teacherStudentRoutes);
